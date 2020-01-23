@@ -16,7 +16,7 @@ public struct Mail {
     public var contentType: ContentType
     public var text: String
     
-    init(
+    public init(
         from: MailUser,
         to: Set<MailUser>,
         cc: Set<MailUser> = [],
