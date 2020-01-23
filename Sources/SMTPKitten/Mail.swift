@@ -8,13 +8,31 @@ public struct Mail {
     }
     
     public let messageId: String
-    public let from: MailUser
-    public let to: Set<MailUser>
-    public let cc: Set<MailUser>
-    public let bcc: Set<MailUser>
-    public let subject: String
-    public let contentType: ContentType
-    public let text: String
+    public var from: MailUser
+    public var to: Set<MailUser>
+    public var cc: Set<MailUser>
+    public var bcc: Set<MailUser>
+    public var subject: String
+    public var contentType: ContentType
+    public var text: String
+    
+    init(
+        from: MailUser,
+        to: Set<MailUser>,
+        cc: Set<MailUser> = [],
+        subject: String,
+        contentType: ContentType,
+        text: String
+    ) {
+        self.messageId = UUID().uuidString
+        self.from = from
+        self.to = to
+        self.cc = cc
+        self.bcc = []
+        self.subject = subject
+        self.contentType = contentType
+        self.text = text
+    }
     // TODO: Attachments
     
     internal var headers: [String: String] {
