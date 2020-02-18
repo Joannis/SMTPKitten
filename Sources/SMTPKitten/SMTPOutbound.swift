@@ -3,7 +3,7 @@ import NIO
 
 struct AnyError: Error {}
 
-public final class SMTPClientOutboundHandler: MessageToByteEncoder {
+final class SMTPClientOutboundHandler: MessageToByteEncoder {
     public typealias OutboundIn = SMTPClientMessage
     
     init() {}
@@ -59,7 +59,7 @@ public final class SMTPClientOutboundHandler: MessageToByteEncoder {
     }
 }
 
-public final class SMTPClientInboundHandler: ByteToMessageDecoder {
+final class SMTPClientInboundHandler: ByteToMessageDecoder {
     public typealias InboundOut = Never
     let context: SMTPClientContext
     
