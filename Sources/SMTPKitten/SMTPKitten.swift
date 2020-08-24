@@ -109,29 +109,27 @@ public final class SMTPClient {
     ) -> EventLoopFuture<SMTPClient> {
         let eventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1).next()
         let context = SMTPClientContext(eventLoop: eventLoop)
-        let parser = ByteToMessageHandler(SMTPClientInboundHandler(context: context))
-        let serializer = MessageToByteHandler(SMTPClientOutboundHandler())
         
-        return ClientBootstrap(group: eventLoop)
-            .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
-            .channelInitializer { channel in
-                var handlers: [ChannelHandler] = [parser, serializer]
-                
-                switch ssl {
-                case .insecure, .startTLS:
-                    break
-                case let .tls(configuration):
-                    do {
-                        let sslContext = try NIOSSLContext(configuration: configuration.makeTlsConfiguration())
-                        let sslHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: hostname)
-                        
-                        handlers.insert(sslHandler, at: 0)
-                    } catch {
-                        return eventLoop.makeFailedFuture(error)
-                    }
+        return ClientBootstrap(group: eventLoop).channelInitializer { channel in
+            let parser = ByteToMessageHandler(SMTPClientInboundHandler(context: context))
+            let serializer = MessageToByteHandler(SMTPClientOutboundHandler())
+            var handlers: [ChannelHandler] = [parser, serializer]
+            
+            switch ssl {
+            case .insecure, .startTLS:
+                break
+            case let .tls(configuration):
+                do {
+                    let sslContext = try NIOSSLContext(configuration: configuration.makeTlsConfiguration())
+                    let sslHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: hostname)
+                    
+                    handlers.insert(sslHandler, at: 0)
+                } catch {
+                    return eventLoop.makeFailedFuture(error)
                 }
-                
-                return channel.pipeline.addHandlers(handlers)
+            }
+            
+            return channel.pipeline.addHandlers(handlers)
         }.connect(host: hostname, port: port).map { channel in
             return SMTPClient(
                 channel: channel,
