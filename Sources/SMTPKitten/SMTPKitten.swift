@@ -113,7 +113,7 @@ public final class SMTPClient {
         let serializer = MessageToByteHandler(SMTPClientOutboundHandler())
         
         return ClientBootstrap(group: eventLoop)
-            .channelOption(ChannelOptions.socket(SocketOptionLevel(SOL_SOCKET), SO_REUSEADDR), value: 1)
+            .channelOption(ChannelOptions.socket(SocketOptionLevel(IPPROTO_TCP), TCP_NODELAY), value: 1)
             .channelInitializer { channel in
                 var handlers: [ChannelHandler] = [parser, serializer]
                 
@@ -201,7 +201,7 @@ public final class SMTPClient {
                 let sslContext = try NIOSSLContext(configuration: configuration.makeTlsConfiguration())
                 let sslHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: self.hostname)
                 
-                return self.channel.pipeline.addHandlers(sslHandler, position: .first)
+                return self.channel.pipeline.addHandler(sslHandler, position: .first)
             } catch {
                 return self.eventLoop.makeFailedFuture(error)
             }

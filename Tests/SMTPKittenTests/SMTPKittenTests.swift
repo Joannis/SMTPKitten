@@ -3,7 +3,6 @@ import XCTest
 
 final class SMTPKittenTests: XCTestCase {
     func testExample() throws {
-        
     }
 
     static var allTests = [
