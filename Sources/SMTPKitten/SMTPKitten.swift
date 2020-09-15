@@ -24,39 +24,64 @@ public enum SMTPSSLMode {
     case insecure
 }
 
+private struct OutstandingRequest {
+    let promise: EventLoopPromise<[SMTPServerMessage]>
+    let sendMessage: () -> EventLoopFuture<Void>
+}
+
 internal final class SMTPClientContext {
-    private(set) var promise: EventLoopPromise<[SMTPServerMessage]>!
-    private var lastResponseFuture: EventLoopFuture<Void>!
+    private var queue = [OutstandingRequest]()
+    private var isProcessing = false
     let eventLoop: EventLoop
     
     init(eventLoop: EventLoop) {
         self.eventLoop = eventLoop
-        
-        // Has initial future because the first response is without request
-        // That response is ignored
-        let promise = eventLoop.makePromise(of: [SMTPServerMessage].self)
-        self.promise = promise
-        self.lastResponseFuture = promise.futureResult.map { _ in
-            self.promise = nil
+    }
+    
+    func sendMessage(
+        sendMessage: @escaping () -> EventLoopFuture<Void>
+    ) -> EventLoopFuture<[SMTPServerMessage]> {
+        eventLoop.flatSubmit {
+            let item = OutstandingRequest(
+                promise: self.eventLoop.makePromise(),
+                sendMessage: sendMessage
+            )
+            
+            self.queue.append(item)
+            
+            self.processNext()
+            
+            return item.promise.futureResult
         }
     }
     
-    func sendMessage(sendMessage: @escaping () -> EventLoopFuture<Void>) -> EventLoopFuture<[SMTPServerMessage]> {
-        let promise = eventLoop.makePromise(of: [SMTPServerMessage].self)
-        
-        let response = lastResponseFuture!.flatMap { _ -> EventLoopFuture<[SMTPServerMessage]> in
-            self.promise = promise
-            return sendMessage()
-                .flatMap { promise.futureResult }
-                .map { messages in
-                    self.promise = nil
-                    return messages
-                }
+    func receive(_ messages: [SMTPServerMessage]) {
+        self.queue.first?.promise.succeed(messages)
+    }
+    
+    func disconnect() {
+        for request in queue {
+            request.promise.fail(SMTPError.disconnected)
+        }
+    }
+    
+    private func processNext() {
+        guard !isProcessing, let item = queue.first else {
+            return
         }
         
-        self.lastResponseFuture = response.map { _ in }
-        
-        return response
+        // Start 'em back up again
+        item.sendMessage().hop(to: eventLoop).whenComplete { _ in
+            // Ensure this item it out of the pool
+            self.queue.removeFirst()
+            self.isProcessing = false
+            
+            self.processNext()
+        }
+    }
+    
+    deinit {
+        disconnect()
     }
 }
 

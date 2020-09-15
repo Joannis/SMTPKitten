@@ -72,17 +72,19 @@ final class SMTPClientInboundHandler: ByteToMessageDecoder {
         
         while buffer.readableBytes > 0 {
             guard let responseCode = try getResponseCode(buffer: &buffer) else {
+                self.context.disconnect()
                 throw SMTPError.incompleteMessage
             }
             
             guard let message = try getResponseMessage(buffer: &buffer) else {
+                self.context.disconnect()
                 throw SMTPError.incompleteMessage
             }
             
             messages.append(SMTPServerMessage(code: responseCode, message: message))
         }
 
-        self.context.promise?.succeed(messages)
+        self.context.receive(messages)
         return .continue
     }
     

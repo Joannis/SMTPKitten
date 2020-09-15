@@ -3,5 +3,6 @@ enum SMTPError: Error {
     case invalidMessage, missingHandshake, incompleteMessage
     case startTlsFailure, starttlsUnsupportedByServer
     case loginFailure
+    case disconnected
     case sendMailFailed
 }
