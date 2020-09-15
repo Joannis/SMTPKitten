@@ -71,7 +71,9 @@ internal final class SMTPClientContext {
         }
         
         // Start 'em back up again
-        item.sendMessage().hop(to: eventLoop).whenComplete { _ in
+        item.sendMessage().flatMap {
+            item.promise.futureResult
+        }.hop(to: eventLoop).whenComplete { _ in
             // Ensure this item it out of the pool
             self.queue.removeFirst()
             self.isProcessing = false
