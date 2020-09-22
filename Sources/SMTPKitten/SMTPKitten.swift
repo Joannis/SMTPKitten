@@ -235,19 +235,18 @@ public final class SMTPClient {
     
     public func login(user: String, password: String) -> EventLoopFuture<Void> {
         return send(.authenticateLogin).flatMap { messages -> EventLoopFuture<[SMTPServerMessage]> in
-            guard messages.first?.responseCode == .containingChallenge else {
+            guard (messages.contains{$0.responseCode == .containingChallenge}) == true else {
                 return self.eventLoop.makeFailedFuture(SMTPError.loginFailure)
             }
-            
             return self.send(.authenticateUser(user))
         }.flatMap { messages -> EventLoopFuture<[SMTPServerMessage]> in
-            guard messages.first?.responseCode == .containingChallenge else {
+            guard (messages.contains{$0.responseCode == .containingChallenge}) == true else {
                 return self.eventLoop.makeFailedFuture(SMTPError.loginFailure)
             }
             
             return self.send(.authenticatePassword(password))
         }.flatMapThrowing { messages in
-            guard messages.first?.responseCode == .authSucceeded else {
+            guard (messages.contains{$0.responseCode == .authSucceeded}) == true else {
                 throw SMTPError.loginFailure
             }
         }
