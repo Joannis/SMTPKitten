@@ -135,6 +135,15 @@ public final class SMTPClient {
         ssl: SMTPSSLMode
     ) -> EventLoopFuture<SMTPClient> {
         let eventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1).next()
+        return connect(hostname: hostname, port: port, ssl: ssl, eventLoop: eventLoop)
+    }
+        
+    public static func connect(
+        hostname: String,
+        port: Int = 587,
+        ssl: SMTPSSLMode,
+        eventLoop: EventLoop
+    ) -> EventLoopFuture<SMTPClient> {
         let context = SMTPClientContext(eventLoop: eventLoop)
         
         return ClientBootstrap(group: eventLoop).channelInitializer { channel in
