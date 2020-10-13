@@ -10,6 +10,8 @@ final class SMTPClientOutboundHandler: MessageToByteEncoder {
     
     public func encode(data: SMTPClientMessage, out: inout ByteBuffer) throws {
         switch data {
+        case .none:
+            return
         case .helo(let hostname):
             out.writeStaticString("HELO ")
             out.writeString(hostname)

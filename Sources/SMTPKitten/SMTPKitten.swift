@@ -165,7 +165,9 @@ public final class SMTPClient {
                 hostname: hostname
             )
         }.flatMap { client in
-            return client.doHandshake().flatMap { handshake in
+            client.send(.none).flatMap { response in
+                client.doHandshake()
+            }.flatMap { handshake in
                 client.handshake = handshake
                 
                 if case .startTLS(let configuration) = ssl {

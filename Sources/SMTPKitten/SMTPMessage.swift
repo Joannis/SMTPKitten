@@ -3,6 +3,7 @@ public protocol SMTPClientRequest {
 }
 
 public enum SMTPClientMessage {
+    case none
     case helo(hostname: String)
     case ehlo(hostname: String)
     case starttls
