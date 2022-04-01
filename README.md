@@ -1,8 +1,9 @@
 # SMTPKitten
 
-Creat
+How to send a simple email using SMTP Kitten:
 
 ```swift
+// Create Mail instance
 let mail = Mail(
     from: MailUser(name: "My Mailer", email: "noreply@example.com"),
     to: [MailUser(name: "John Doe", email: "john.doe@example.com")],
@@ -11,15 +12,15 @@ let mail = Mail(
     text: "Welcome to our app, you're all set up & stuff."
 )
 
-SMTPClient.connect(
+// Connect to the SMTP server
+let client = try await SMTPClient.connect(
     hostname: "smtp.example.com",
     ssl: .startTLS(configuration: .default)
-).flatMap { client in
-    client.login(
-        user: "noreply@example.com",
-        password: "pas$w0rd"
-    ).flatMap {
-        client.sendMail(mail)
-    }
-}
+)
+
+// Login using your credentials
+try await client.login(user: "noreply@example.com", password: "pas$w0rd")
+
+// Send out mails 🎉
+try await client.sendMail(mail)
 ```
