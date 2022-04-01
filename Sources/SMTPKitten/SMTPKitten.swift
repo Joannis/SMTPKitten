@@ -38,26 +38,24 @@ internal final class SMTPClientContext {
         self.eventLoop = eventLoop
     }
     
-    private func _sendMessage(
+    internal func sendMessage(
         sendMessage: @escaping () -> EventLoopFuture<Void>
-    ) -> EventLoopFuture<[SMTPServerMessage]> {
-        eventLoop.flatSubmit {
-            let item = OutstandingRequest(
-                promise: self.eventLoop.makePromise(),
-                sendMessage: sendMessage
-            )
-            
-            self.queue.append(item)
-            
-            self.processNext()
-            
-            return item.promise.futureResult
-        }
-    }
-    
-    func sendMessage(messages: @escaping () -> EventLoopFuture<Void>) async throws -> [SMTPServerMessage] {
-        return try await withCheckedThrowingContinuation({ continuation in
-            _sendMessage(sendMessage: messages).whenComplete { result in
+    ) async throws -> [SMTPServerMessage] {
+        return try await withCheckedThrowingContinuation({ (continuation: CheckedContinuation<[SMTPServerMessage], Error>) in
+            let result: EventLoopFuture<[SMTPServerMessage]> = eventLoop.flatSubmit {
+                let item = OutstandingRequest(
+                    promise: self.eventLoop.makePromise(),
+                    sendMessage: sendMessage
+                )
+                
+                self.queue.append(item)
+                
+                self.processNext()
+                
+                return item.promise.futureResult
+            }
+                
+            result.whenComplete { result in
                 do {
                     continuation.resume(returning: try result.get())
                 } catch {
@@ -225,25 +223,19 @@ public final class SMTPClient {
     }
     
     internal func doHandshake() async throws-> SMTPHandshake {
-        let ehloMessages = try await send(.ehlo(hostname: hostname))
-        
-        if let handshake = SMTPHandshake(ehloMessages) {
+        if let handshake = SMTPHandshake(try await send(.ehlo(hostname: hostname))) {
             return handshake
         }
-        
-        let heloMessages = try await send(.helo(hostname: hostname))
-        
-        guard let handshake = SMTPHandshake(heloMessages) else {
+                
+        guard let handshake = SMTPHandshake(try await send(.helo(hostname: hostname))) else {
             throw SMTPError.missingHandshake
         }
         
         return handshake
     }
     
-    internal func starttls(configuration: SMTPSSLConfiguration) async throws {
-        let messages = try await send(.starttls)
-        
-        guard messages.first?.responseCode == .serviceReady else {
+    internal func starttls(configuration: SMTPSSLConfiguration) async throws {        
+        guard try await send(.starttls).first?.responseCode == .serviceReady else {
             throw SMTPError.startTlsFailure
         }
         
@@ -261,11 +253,11 @@ public final class SMTPClient {
         guard try await send(.authenticateLogin).first?.responseCode == .containingChallenge else {
             throw SMTPError.loginFailure
         }
-                
+        
         guard try await send(.authenticateUser(user)).first?.responseCode == .containingChallenge else {
             throw SMTPError.loginFailure
         }
-                
+        
         guard try await send(.authenticatePassword(password)).first?.responseCode == .authSucceeded else {
             throw SMTPError.loginFailure
         }
@@ -285,7 +277,7 @@ public final class SMTPClient {
         for user in mail.bcc {
             recipients.append(user)
         }
-                
+        
         try await send(.startMail(mail)).status(.commandOK)
         
         try await withThrowingTaskGroup(of: Void.self, body: { group in
