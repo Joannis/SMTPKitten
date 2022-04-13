@@ -1,8 +1,11 @@
 import XCTest
 @testable import SMTPKitten
+import NIOPosix
 
 final class SMTPKittenTests: XCTestCase {
-    func testExample() throws {
+    @available(iOS 13.0.0, *)
+    func testExample() async throws {
+        
     }
 
     static var allTests = [
