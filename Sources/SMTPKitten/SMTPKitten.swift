@@ -4,16 +4,18 @@ import NIOSSL
 public enum SMTPSSLConfiguration {
     case `default`
     case customRoot(path: String)
+    case custom(TLSConfiguration)
     
     internal func makeTlsConfiguration() -> TLSConfiguration {
         switch self {
         case .default:
-            return TLSConfiguration.forClient()
+            return TLSConfiguration.clientDefault
         case .customRoot(let path):
-            return TLSConfiguration.forClient(
-                certificateVerification: .fullVerification,
-                trustRoots: .file(path)
-            )
+            var tlsConfig = TLSConfiguration.makeClientConfiguration()
+            tlsConfig.trustRoots = .file(path)
+            return tlsConfig
+        case .custom(let config):
+            return config
         }
     }
 }
@@ -28,6 +30,18 @@ private struct OutstandingRequest {
     let promise: EventLoopPromise<[SMTPServerMessage]>
     let sendMessage: () -> EventLoopFuture<Void>
 }
+
+internal final class ErrorCloseHandler: ChannelInboundHandler {
+    typealias InboundIn = NIOAny
+    
+    init() {}
+    
+    func errorCaught(context: ChannelHandlerContext, error: Error) {
+        context.fireErrorCaught(error)
+        context.close(promise: nil)
+    }
+}
+
 
 internal final class SMTPClientContext {
     private var queue = [OutstandingRequest]()
@@ -137,6 +151,62 @@ public final class SMTPClient {
         let eventLoop = MultiThreadedEventLoopGroup(numberOfThreads: 1).next()
         return connect(hostname: hostname, port: port, ssl: ssl, eventLoop: eventLoop)
     }
+    
+    public static func connect(
+        hostname: String,
+        channel: Channel,
+        ssl: SMTPSSLMode
+    ) -> EventLoopFuture<SMTPClient> {
+        let context = SMTPClientContext(eventLoop: channel.eventLoop)
+        
+        let parser = ByteToMessageHandler(SMTPClientInboundHandler(context: context))
+        let serializer = MessageToByteHandler(SMTPClientOutboundHandler())
+        var handlers: [ChannelHandler] = [parser, serializer, ErrorCloseHandler()]
+        
+        switch ssl {
+        case .insecure, .startTLS:
+            break
+        case let .tls(configuration):
+            do {
+                let sslContext = try NIOSSLContext(configuration: configuration.makeTlsConfiguration())
+                let sslHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: hostname)
+                
+                handlers.insert(sslHandler, at: 0)
+            } catch {
+                return channel.eventLoop.makeFailedFuture(error)
+            }
+        }
+        
+        return channel.pipeline.addHandlers(handlers).map {
+            return SMTPClient(
+                channel: channel,
+                eventLoop: channel.eventLoop,
+                context: context,
+                hostname: hostname
+            )
+        }.flatMap { client in
+            client.send(.none).flatMap { response in
+                client.doHandshake()
+            }.flatMap { handshake in
+                client.handshake = handshake
+                
+                if case .startTLS(let configuration) = ssl {
+                    if !handshake.starttls {
+                        return channel.eventLoop.makeFailedFuture(SMTPError.starttlsUnsupportedByServer)
+                    }
+                    
+                    return client.starttls(configuration: configuration).flatMap {
+                        return client.doHandshake()
+                    }.map { handshake in
+                        client.handshake = handshake
+                        return client
+                    }
+                }
+                
+                return channel.eventLoop.makeSucceededFuture(client)
+            }
+        }
+    }
         
     public static func connect(
         hostname: String,
@@ -149,7 +219,7 @@ public final class SMTPClient {
         return ClientBootstrap(group: eventLoop).channelInitializer { channel in
             let parser = ByteToMessageHandler(SMTPClientInboundHandler(context: context))
             let serializer = MessageToByteHandler(SMTPClientOutboundHandler())
-            var handlers: [ChannelHandler] = [parser, serializer]
+            var handlers: [ChannelHandler] = [parser, serializer, ErrorCloseHandler()]
             
             switch ssl {
             case .insecure, .startTLS:
@@ -184,12 +254,12 @@ public final class SMTPClient {
                         return eventLoop.makeFailedFuture(SMTPError.starttlsUnsupportedByServer)
                     }
                     
-                    return client.starttls(configuration: configuration).flatMap {
-                        return client.doHandshake()
-                    }.map { handshake in
-                        client.handshake = handshake
-                        return client
-                    }
+                    return client.starttls(configuration: configuration)
+                        .flatMap(client.doHandshake)
+                        .map { handshake in
+                            client.handshake = handshake
+                            return client
+                        }
                 }
                 
                 return eventLoop.makeSucceededFuture(client)
