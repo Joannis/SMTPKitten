@@ -7,7 +7,7 @@ public enum SMTPClientMessage {
     case helo(hostname: String)
     case ehlo(hostname: String)
     case starttls
-    case authenticatePlain
+    case authenticatePlain(base64: String)
     case authenticateLogin
     case authenticateCramMd5
     case authenticateXOAuth2(credentials: String)

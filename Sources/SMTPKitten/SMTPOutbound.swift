@@ -38,8 +38,9 @@ final class SMTPClientOutboundHandler: MessageToByteEncoder {
             out.writeString("\r\n\(mail.text)\r\n.")
         case .starttls:
             out.writeStaticString("STARTTLS")
-        case .authenticatePlain:
-            out.writeStaticString("AUTH PLAIN")
+        case .authenticatePlain(let base64):
+            out.writeStaticString("AUTH PLAIN ")
+            out.writeString(base64)
         case .authenticateLogin:
             out.writeStaticString("AUTH LOGIN")
         case .authenticateCramMd5:
