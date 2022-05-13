@@ -50,7 +50,7 @@ public struct Mail {
                 .joined(separator: ", ")
         }
 
-        headers["Subject"] = subject
+        headers["Subject"] = "=?utf-8?B?\(subject.base64Encoded)?="
         headers["MIME-Version"] = "1.0"
         headers["Content-Type"] = contentType.rawValue
         
