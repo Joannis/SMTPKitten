@@ -1,21 +1,38 @@
 import Foundation
 import NIO
 
+/// A mail that can be sent using SMTP. This is the main type that you will be using. It contains all the information that is needed to send an email.
 public struct Mail {
     public enum ContentType: String {
-        case plain = "text/plain"
-        case html = "text/html"
+        case plain = "text/plain; encoding=utf8"
+        case html = "text/html; encoding=utf8"
     }
     
+    /// The message ID of the mail. This is automatically generated.
     public let messageId: String
+
+    /// The sender of the mail. This is a `MailUser` struct that contains the name and email address of the sender.
     public var from: MailUser
+
+    /// The recipients of the mail. This is a set of `MailUser` structs that contain the name and email address of the recipients.
     public var to: Set<MailUser>
+
+    /// The carbon copy recipients of the mail. This is a set of `MailUser` structs that contain the name and email address of the recipients.
     public var cc: Set<MailUser>
+
+    /// The blind carbon copy recipients of the mail. This is a set of `MailUser` structs that contain the name and email address of the recipients.
     public var bcc: Set<MailUser>
+
+    /// The subject of the mail.
     public var subject: String
+
+    /// The content type of the mail. This can be either plain text or HTML.
     public var contentType: ContentType
+
+    /// The text of the mail. This can be either plain text or HTML depending on the `contentType` property.
     public var text: String
     
+    /// Creates a new `Mail` instance.
     public init(
         from: MailUser,
         to: Set<MailUser>,
@@ -35,6 +52,7 @@ public struct Mail {
     }
     // TODO: Attachments
     
+    /// Generates the headers of the mail.
     internal var headers: [String: String] {
         var headers = [String: String]()
         headers.reserveCapacity(16)
@@ -50,20 +68,19 @@ public struct Mail {
                 .joined(separator: ", ")
         }
 
-        headers["Subject"] = "=?utf-8?B?\(subject.base64Encoded)?="
+        if let data = subject.data(using: .utf8) {
+            headers["Subject"] = "=?utf-8?B?\(data.base64EncodedString())?="
+        } else {
+            headers["Subject"] = subject
+        }
         headers["MIME-Version"] = "1.0"
         headers["Content-Type"] = contentType.rawValue
         
         return headers
     }
-
-//    var headersString: String {
-//        return headers.map { (key, value) in
-//            return "\(key): \(value)"
-//        }.joined(separator: "\r\n")
-//    }
 }
 
+/// A user that can be used in an email. This can be either the sender or a recipient.
 public struct MailUser: Hashable, ExpressibleByStringLiteral {
     /// The user's name that is displayed in an email. Optional.
     public let name: String?
@@ -81,6 +98,7 @@ public struct MailUser: Hashable, ExpressibleByStringLiteral {
         self.name = nil
     }
 
+    /// Generates the SMTP formatted string of the user.
     var smtpFormatted: String {
         if let name = name {
             return "\(name) <\(email)>"

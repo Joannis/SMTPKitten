@@ -2,6 +2,7 @@ public protocol SMTPClientRequest {
     var text: String { get }
 }
 
+/// Any message that can be sent to the SMTP server.
 public enum SMTPClientMessage {
     case none
     case helo(hostname: String)
@@ -22,6 +23,7 @@ public enum SMTPClientMessage {
     case mailData(Mail)
 }
 
+/// Any message that can be received from the SMTP server.
 public struct SMTPServerMessage {
     var responseCode: SMTPResponseCode? {
         SMTPResponseCode(rawValue: code)
@@ -30,6 +32,7 @@ public struct SMTPServerMessage {
     let message: String
 }
 
+/// The response codes that can be received from the SMTP server.
 public enum SMTPResponseCode: Int {
     case serviceReady = 220
     case connectionClosing = 221

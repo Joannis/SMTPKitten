@@ -20,9 +20,15 @@ public enum SMTPSSLConfiguration {
     }
 }
 
+/// The mode that the SMTP client should use for SSL. This can be either `startTLS`, `tls` or `insecure`.
 public enum SMTPSSLMode {
+    /// The SMTP client should use the `STARTTLS` command to upgrade the connection to SSL.
     case startTLS(configuration: SMTPSSLConfiguration)
+
+    /// The SMTP client should use SSL from the start.
     case tls(configuration: SMTPSSLConfiguration)
+
+    /// The SMTP client should not use SSL.
     case insecure
 }
 
@@ -123,6 +129,7 @@ internal struct SMTPHandshake {
     }
 }
 
+/// The SMTP client. This is the main entry point for the SMTPKitten library. It is used to connect to an SMTP server and send emails.
 public final class SMTPClient {
     private let channel: Channel
     public let eventLoop: EventLoop
@@ -143,6 +150,7 @@ public final class SMTPClient {
         self.hostname = hostname
     }
     
+    /// Connect to an SMTP server.
     public static func connect(
         hostname: String,
         port: Int = 587,
@@ -152,6 +160,7 @@ public final class SMTPClient {
         return connect(hostname: hostname, port: port, ssl: ssl, eventLoop: eventLoop)
     }
     
+    /// Connect to an SMTP server.
     public static func connect(
         hostname: String,
         channel: Channel,
@@ -208,6 +217,7 @@ public final class SMTPClient {
         }
     }
         
+    /// Connect to an SMTP server.
     public static func connect(
         hostname: String,
         port: Int = 587,
@@ -267,6 +277,7 @@ public final class SMTPClient {
         }
     }
     
+    /// Send a message and wait for a responses.
     public func send(
         _ message: SMTPClientMessage
     ) -> EventLoopFuture<[SMTPServerMessage]> {
@@ -275,6 +286,7 @@ public final class SMTPClient {
         }
     }
     
+    /// Send a message without waiting for a response. This is useful for sending the `QUIT` command.
     public func sendWithoutResponse(
         _ message: SMTPClientMessage
     ) -> EventLoopFuture<Void> {
@@ -314,6 +326,7 @@ public final class SMTPClient {
         }
     }
     
+    /// Authenticate using the `LOGIN` mechanism. This is the default mechanism used by most SMTP servers.
     public func login(user: String, password: String) -> EventLoopFuture<Void> {
         return send(.authenticateLogin).flatMap { messages -> EventLoopFuture<[SMTPServerMessage]> in
             guard messages.first?.responseCode == .containingChallenge else {
@@ -334,6 +347,7 @@ public final class SMTPClient {
         }
     }
     
+    /// Send a mail.
     public func sendMail(_ mail: Mail) -> EventLoopFuture<Void> {
         var recipients = [MailUser]()
         
@@ -360,6 +374,11 @@ public final class SMTPClient {
         }.flatMap {
             self.send(.mailData(mail)).status(.commandOK)
         }
+    }
+    
+    /// Send a mail. This method will wait for the mail to be sent before returning.
+    public func sendMail(_ mail: Mail) async throws {
+        try await sendMail(mails).get()
     }
 }
 
