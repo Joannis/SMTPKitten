@@ -377,8 +377,9 @@ public final class SMTPClient {
     }
     
     /// Send a mail. This method will wait for the mail to be sent before returning.
+    @available(macOS 15, iOS 13, *)
     public func sendMail(_ mail: Mail) async throws {
-        try await sendMail(mails).get()
+        try await sendMail(mail).get()
     }
 }
 
@@ -386,7 +387,7 @@ extension EventLoopFuture where Value == [SMTPServerMessage] {
     func status(_ status: SMTPResponseCode...) -> EventLoopFuture<Void> {
         flatMapThrowing { messages in
             guard let currentStatus = messages.first?.responseCode else {
-                throw SMTPError.sendMailFailed
+                throw SMTPError.sendMailFailed(nil)
             }
             
             for neededStatus in status {
@@ -395,7 +396,7 @@ extension EventLoopFuture where Value == [SMTPServerMessage] {
                 }
             }
             
-            throw SMTPError.sendMailFailed
+            throw SMTPError.sendMailFailed(currentStatus)
         }
     }
 }
