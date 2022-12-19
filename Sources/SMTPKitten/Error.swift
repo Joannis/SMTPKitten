@@ -4,5 +4,5 @@ enum SMTPError: Error {
     case startTlsFailure, starttlsUnsupportedByServer
     case loginFailure
     case disconnected
-    case sendMailFailed(SMTPResponseCode?)
+    case sendMailFailed(Int?)
 }

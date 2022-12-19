@@ -386,8 +386,12 @@ public final class SMTPClient {
 extension EventLoopFuture where Value == [SMTPServerMessage] {
     func status(_ status: SMTPResponseCode...) -> EventLoopFuture<Void> {
         flatMapThrowing { messages in
-            guard let currentStatus = messages.first?.responseCode else {
+            guard let message = messages.first else {
                 throw SMTPError.sendMailFailed(nil)
+            }
+            
+            guard let currentStatus = messages.first?.responseCode else {
+                throw SMTPError.sendMailFailed(message.code)
             }
             
             for neededStatus in status {
@@ -396,7 +400,7 @@ extension EventLoopFuture where Value == [SMTPServerMessage] {
                 }
             }
             
-            throw SMTPError.sendMailFailed(currentStatus)
+            throw SMTPError.sendMailFailed(message.code)
         }
     }
 }
