@@ -28,8 +28,8 @@ public struct SMTPServerMessage {
     var responseCode: SMTPResponseCode? {
         SMTPResponseCode(rawValue: code)
     }
-    let code: Int
-    let message: String
+    public let code: Int
+    public let lines: [String]
 }
 
 /// The response codes that can be received from the SMTP server.

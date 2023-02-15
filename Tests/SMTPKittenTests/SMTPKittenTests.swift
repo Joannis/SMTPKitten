@@ -4,10 +4,10 @@ import NIOSSL
 import NIOPosix
 
 final class SMTPKittenTests: XCTestCase {
-    func testExample() throws {
+    func testExample() async throws {
         let mail = Mail(
-            from: MailUser(name: "info@example.com", email: "info@example.com"),
-            to: [MailUser(name: "info@example.com", email: "info@example.com")],
+            from: "joannis@orlandos.nl",
+            to: ["joannis@unbeatable.software"],
             subject: "Welcome to our app!",
             contentType: .plain,
             text: "Welcome to our app, you're all set up & stuff."
@@ -15,18 +15,18 @@ final class SMTPKittenTests: XCTestCase {
         
         var tlsConfig = TLSConfiguration.clientDefault
         tlsConfig.certificateVerification = .none
-        let client = try SMTPClient.connect(
-            hostname: "localhost",
+        let client = try await SMTPClient.connect(
+            hostname: "smtp.example.com",
             port: 587,
-            ssl: .startTLS(configuration: .custom(tlsConfig))
-        ).wait()
+            ssl: .startTLS(configuration: .default)
+        )
         
-        try client.login(
+        try await client.login(
             user: "info@example.com",
             password: "passwd1"
-        ).wait()
+        )
         
-        try client.sendMail(mail).wait()
+        try await client.sendMail(mail)
     }
     
     static var allTests = [

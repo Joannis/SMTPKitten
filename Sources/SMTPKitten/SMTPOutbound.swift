@@ -60,36 +60,36 @@ final class SMTPClientOutboundHandler: MessageToByteEncoder {
     }
 }
 
-final class SMTPClientInboundHandler: ByteToMessageDecoder {
-    public typealias InboundOut = Never
+final class SMTPClientInboundHandler: ChannelInboundHandler {
+    typealias InboundIn = ByteBuffer
+    typealias InboundOut = Never
+    
     let context: SMTPClientContext
+    var responseCode: Int?
+    var lines = [String]()
     
     init(context: SMTPClientContext) {
         self.context = context
     }
     
-    public func decode(context: ChannelHandlerContext, buffer: inout ByteBuffer) throws -> DecodingState {
-        var messages = [SMTPServerMessage]()
+    func channelRead(context: ChannelHandlerContext, data: NIOAny) {
+        var buffer = unwrapInboundIn(data)
         
-        while buffer.readableBytes > 0 {
-            guard let responseCode = try getResponseCode(buffer: &buffer) else {
-                self.context.disconnect()
-                throw SMTPError.incompleteMessage
-            }
+        do {
+            let responseCode = try getResponseCode(buffer: &buffer)
+            self.responseCode = responseCode
             
-            guard let message = try getResponseMessage(buffer: &buffer) else {
-                self.context.disconnect()
-                throw SMTPError.incompleteMessage
+            if let lines = try getResponseMessage(buffer: &buffer) {
+                self.context.receive(SMTPServerMessage(code: responseCode, lines: lines))
             }
-            
-            messages.append(SMTPServerMessage(code: responseCode, message: message))
+        } catch {
+            self.context.disconnect()
+            context.fireErrorCaught(SMTPError.incompleteMessage)
+            context.close(promise: nil)
         }
-
-        self.context.receive(messages)
-        return .continue
     }
     
-    func getResponseCode(buffer: inout ByteBuffer) throws -> Int? {
+    func getResponseCode(buffer: inout ByteBuffer) throws -> Int {
         guard let code = buffer.readString(length: 3) else {
             throw SMTPError.invalidCode(nil)
         }
@@ -98,43 +98,37 @@ final class SMTPClientInboundHandler: ByteToMessageDecoder {
             throw SMTPError.invalidCode(code)
         }
         
+        if let knownResponseCode = self.responseCode, knownResponseCode != responseCode {
+            throw SMTPError.invalidMessage
+        }
+        
         return responseCode
     }
     
-    func getResponseMessage(buffer: inout ByteBuffer) throws -> String? {
+    func getResponseMessage(buffer: inout ByteBuffer) throws -> [String]? {
         guard
-            buffer.readableBytes >= 2,
-            let bytes = buffer.getBytes(
-                at: buffer.readerIndex,
-                length: buffer.readableBytes
-            )
+            var line = buffer.readString(length: buffer.readableBytes)
         else {
-            return nil
+            throw SMTPError.invalidMessage
         }
         
-        for i in 0..<bytes.count - 1 {
-            if bytes[i] == cr && bytes[i + 1] == lf {
-                guard
-                    let messageBytes = buffer.readBytes(length: i),
-                    var message = String(bytes: messageBytes, encoding: .utf8)
-                else {
-                    throw SMTPError.invalidMessage
-                }
-                
-                buffer.moveReaderIndex(forwardBy: 2)
-                
-                if message.first == " " || message.first == "-" {
-                    message.removeFirst()
-                }
-                
-                return message
+        let marker = line.removeFirst()
+        lines.append(line)
+        
+        if marker == " " {
+            defer {
+                // Reset to next message
+                lines.removeAll(keepingCapacity: true)
+                responseCode = nil
             }
+            
+            return lines
+        } else if marker == "-"  {
+            return nil
+        } else {
+            throw SMTPError.invalidMessage
         }
         
         return nil
-    }
-    
-    public func decodeLast(context: ChannelHandlerContext, buffer: inout ByteBuffer, seenEOF: Bool) throws -> DecodingState {
-        return try decode(context: context, buffer: &buffer)
     }
 }
