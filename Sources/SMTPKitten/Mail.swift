@@ -3,9 +3,19 @@ import NIO
 
 /// A mail that can be sent using SMTP. This is the main type that you will be using. It contains all the information that is needed to send an email.
 public struct Mail {
-    public enum ContentType: String {
-        case plain = "text/plain; encoding=utf8"
-        case html = "text/html; encoding=utf8"
+    public struct ContentType: RawRepresentable, ExpressibleByStringLiteral {
+        public let rawValue: String
+        
+        public init(rawValue: String) {
+            self.rawValue = rawValue
+        }
+        
+        public init(stringLiteral value: StringLiteralType) {
+            self.rawValue = value
+        }
+        
+        static let plain = ContentType(rawValue: "text/plain; encoding=utf8")
+        static let html = ContentType(rawValue: "text/html; encoding=utf8")
     }
     
     /// The message ID of the mail. This is automatically generated.

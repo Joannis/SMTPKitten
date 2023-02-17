@@ -128,7 +128,5 @@ final class SMTPClientInboundHandler: ChannelInboundHandler {
         } else {
             throw SMTPError.invalidMessage
         }
-        
-        return nil
     }
 }
