@@ -30,6 +30,6 @@ let package = Package(
             dependencies: ["NIO", "NIOSSL", "NIOExtras"]),
         .testTarget(
             name: "SMTPKittenTests",
-            dependencies: ["SMTPKitten"]),
+            dependencies: ["SMTPKitten", "NIOFoundationCompat"]),
     ]
 )

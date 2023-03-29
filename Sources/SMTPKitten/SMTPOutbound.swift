@@ -13,21 +13,19 @@ final class SMTPClientOutboundHandler: MessageToByteEncoder {
         case .none:
             return
         case .helo(let hostname):
-            out.writeStaticString("HELO ")
+            out.writeString("HELO ")
             out.writeString(hostname)
         case .ehlo(let hostname):
-            out.writeStaticString("EHLO ")
+            out.writeString("EHLO ")
             out.writeString(hostname)
         case .custom(let request):
             out.writeString(request.text)
         case .startMail(let mail):
-            out.writeStaticString("MAIL FROM: <")
-            out.writeString(mail.from.email)
-            out.writeString("> BODY=8BITMIME")
+            out.writeString("MAIL FROM: <\(mail.from.email)> BODY=8BITMIME")
         case .mailRecipient(let address):
             out.writeString("RCPT TO: <\(address)>")
         case .startMailData:
-            out.writeStaticString("DATA")
+            out.writeString("DATA")
         case .mailData(let mail):
             var headersText = ""
             for header in mail.headers {
@@ -35,24 +33,26 @@ final class SMTPClientOutboundHandler: MessageToByteEncoder {
             }
             headersText += "Content-Transfer-Encoding: 7bit\r\n"
             out.writeString(headersText)
-            out.writeString("\r\n\(mail.text)\r\n.")
+            out.writeString("\r\n")
+            mail.content.writePayload(into: &out)
+            out.writeString("\r\n.")
         case .starttls:
-            out.writeStaticString("STARTTLS")
+            out.writeString("STARTTLS")
         case .authenticatePlain:
-            out.writeStaticString("AUTH PLAIN")
+            out.writeString("AUTH PLAIN")
         case .authenticateLogin:
-            out.writeStaticString("AUTH LOGIN")
+            out.writeString("AUTH LOGIN")
         case .authenticateCramMd5:
-            out.writeStaticString("AUTH CRAM-MD5")
+            out.writeString("AUTH CRAM-MD5")
         case .authenticateXOAuth2(let credentials):
-            out.writeStaticString("AUTH XOAUTH2 ")
+            out.writeString("AUTH XOAUTH2 ")
             out.writeString(credentials)
         case .authenticateUser(let user):
             out.writeString(user.base64Encoded)
         case .authenticatePassword(let password):
             out.writeString(password.base64Encoded)
         case .quit:
-            out.writeStaticString("QUIT")
+            out.writeString("QUIT")
         }
         
         out.writeInteger(cr)
