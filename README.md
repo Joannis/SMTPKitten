@@ -8,7 +8,7 @@ To get started, add the SMTPKitten dependency:
 
 And add it as a dependency of your target:
 
-```swit
+```swift
 .product(name: "SMTPKitten", package: "SMTPKitten"),
 ```
 
