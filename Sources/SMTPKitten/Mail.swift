@@ -223,7 +223,7 @@ extension Mail {
         ) -> Image {
             return Image(
                 mime: "image/png",
-                base64: buffer.base64EncodedString(),
+                base64: buffer.base64EncodedString(options: .lineLength76Characters),
                 filename: filename,
                 contentDisposition: contentDisposition,
                 contentId: contentId
@@ -238,7 +238,7 @@ extension Mail {
         ) -> Image {
             return Image(
                 mime: "image/jpeg",
-                base64: buffer.base64EncodedString(),
+                base64: buffer.base64EncodedString(options: .lineLength76Characters),
                 filename: filename,
                 contentDisposition: contentDisposition,
                 contentId: contentId
@@ -263,7 +263,7 @@ extension Mail {
             contentDisposition: ContentDisposition = .inline
         ) {
             self.mime = mime
-            self.base64 = buffer.base64EncodedString()
+            self.base64 = buffer.base64EncodedString(options: .lineLength76Characters)
             self.filename = filename
             self.contentDisposition = contentDisposition
         }
