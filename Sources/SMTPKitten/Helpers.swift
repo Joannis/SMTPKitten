@@ -6,6 +6,7 @@ let lf: UInt8 = 0x0a
 fileprivate let smtpDateFormatter: DateFormatter = {
     let formatter = DateFormatter()
     formatter.dateFormat = "EEE, d MMM yyyy HH:mm:ss ZZZ"
+    formatter.locale = Locale(identifier: "en_US_POSIX")
     return formatter
 }()
 
