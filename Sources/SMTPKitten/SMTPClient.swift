@@ -324,8 +324,31 @@ public final class SMTPClient {
         try await self.channel.pipeline.addHandler(sslHandler, position: .first)
     }
     
-    public func login(user: String, password: String, using method: SMTPAuthMethod = .login) async throws {
-        try await auth(using: method, user: user, password: password)
+    public func login(user: String, password: String, force method: SMTPAuthMethod? = nil) async throws {
+        if let method {
+            // If desired login method is specified - use it and ignore server's capatiblities
+            try await auth(using: method, user: user, password: password)
+        } else if let auth = self.handshake?.auth {
+            // Check which auth options are available and use one of that
+            var methods = auth.sorted(by: { $0.priority < $1.priority })
+            var lastError: Error?
+            while let method = methods.popLast() {
+                do {
+                    try await self.auth(using: method, user: user, password: password)
+                    lastError = nil
+                    break
+                } catch {
+                    lastError = error
+                    continue
+                }
+            }
+            if let lastError {
+                throw lastError
+            }
+        } else {
+            // Use LOGIN method as default one
+            try await auth(using: .login, user: user, password: password)
+        }
     }
     
     private func auth(using method: SMTPAuthMethod, user: String, password: String) async throws {
