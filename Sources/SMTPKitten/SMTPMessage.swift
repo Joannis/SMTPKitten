@@ -8,7 +8,7 @@ public enum SMTPClientMessage {
     case helo(hostname: String)
     case ehlo(hostname: String)
     case starttls
-    case authenticatePlain
+    case authenticatePlain(SMTPPlainCreds)
     case authenticateLogin
     case authenticateCramMd5
     case authenticateXOAuth2(credentials: String)
@@ -42,4 +42,29 @@ public enum SMTPResponseCode: Int {
     case containingChallenge = 334
     case startMailInput = 354
     case commandNotRecognized = 502
+}
+
+/// SMTP Authentication method.
+public enum SMTPAuthMethod: String, CaseIterable {
+    case plain = "PLAIN"
+    case login = "LOGIN"
+    case crammd5 = "CRAM-MD5"
+    
+    var priority: Int {
+        switch self {
+        case .plain: 0
+        case .login: 1
+        case .crammd5: 2
+        }
+    }
+}
+
+/// Type for building a correct credentials for PLAIN SMTP auth.
+public struct SMTPPlainCreds: SMTPClientRequest {
+    public let user: String
+    public let password: String
+    
+    public var text: String {
+        "\0\(user)\0\(password)"
+    }
 }

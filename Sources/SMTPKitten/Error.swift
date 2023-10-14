@@ -5,6 +5,7 @@ enum SMTPError: Error, CustomDebugStringConvertible, CustomStringConvertible {
     case loginFailure
     case disconnected
     case sendMailFailed(Int?)
+    case incompatibleAuthMethod(SMTPAuthMethod)
 
     var description: String { debugDescription }
 
@@ -28,6 +29,8 @@ enum SMTPError: Error, CustomDebugStringConvertible, CustomStringConvertible {
             return "Disconnected"
         case .sendMailFailed(let code):
             return "Send mail failed with code \(code ?? -1)"
+        case .incompatibleAuthMethod(let method):
+            return "Auth method '\(method.rawValue)' is not suppored"
         }
     }
 }
