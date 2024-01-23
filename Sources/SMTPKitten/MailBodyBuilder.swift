@@ -1,5 +1,7 @@
 @resultBuilder
 public struct MailBodyBuilder {
+    
+    /// Creates the email contents body.
     public static func buildBlock(_ components: MailContentConvertible...) -> Mail.Content {
         let blocks = components.flatMap(\.content.blocks)
 
@@ -9,6 +11,8 @@ public struct MailBodyBuilder {
             return .multiple(blocks)
         }
     }
+    
+    /// Creates the email contents body bases on an array, this will allow you to construct the body based on wild elements.
     public static func buildBlock(_ components: [MailContentConvertible]) -> Mail.Content {
 
         let blocks = components.flatMap(\.content.blocks)
