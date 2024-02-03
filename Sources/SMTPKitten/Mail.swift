@@ -102,11 +102,16 @@ public struct Mail {
     /// The text of the mail. This can be either plain text or HTML depending on the `contentType` property.
     public var content: Content
     
+    /// Adds custom headers and overwrites the implicitly created ones. Use this property to add headers relevant for sending bulk emails, such as `List-Unsubscribe` or `Precedence` headers.
+    public var customHeaders: [String: String]
+    
     /// Creates a new `Mail` instance.
     public init(
         from: MailUser,
         to: Set<MailUser>,
         cc: Set<MailUser> = [],
+        bcc: Set<MailUser> = [],
+        customHeaders: [String: String] = [:],
         subject: String,
         content: Content
     ) {
@@ -114,7 +119,8 @@ public struct Mail {
         self.from = from
         self.to = to
         self.cc = cc
-        self.bcc = []
+        self.bcc = bcc
+        self.customHeaders = customHeaders
         self.subject = subject
         self.content = content
     }
@@ -123,6 +129,8 @@ public struct Mail {
         from: MailUser,
         to: Set<MailUser>,
         cc: Set<MailUser> = [],
+        bcc: Set<MailUser> = [],
+        customHeaders: [String: String] = [:],
         subject: String,
         @MailBodyBuilder content: () -> Content
     ) {
@@ -130,7 +138,8 @@ public struct Mail {
         self.from = from
         self.to = to
         self.cc = cc
-        self.bcc = []
+        self.bcc = bcc
+        self.customHeaders = customHeaders
         self.subject = subject
         self.content = content()
     }
@@ -162,6 +171,10 @@ public struct Mail {
             headers["Subject"] = "=?utf-8?B?\(data.base64EncodedString())?="
         } else {
             headers["Subject"] = subject
+        }
+        
+        for header in customHeaders {
+            headers[header.key] = header.value
         }
         
         return headers
