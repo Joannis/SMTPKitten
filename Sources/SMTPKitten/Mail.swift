@@ -187,15 +187,12 @@ extension Mail.Content {
             var written = 0
             for block in blocks {
                 let headers = block.headers.map { "\($0): \($1)" }.joined(separator: "\r\n")
-                written += buffer.writeString("""
-                --\(boundary)
-                \(headers)
-
-
-                """)
-
+                written += buffer.writeString("\r\n")
+                written += buffer.writeString("--\(boundary)\r\n")
+                written += buffer.writeString("\(headers)\r\n")
+                written += buffer.writeString("\r\n")
                 written += block.writePayload(into: &buffer)
-                written += buffer.writeString("\n")
+                written += buffer.writeString("\r\n")
             }
 
             return written
@@ -323,23 +320,11 @@ extension Mail.Content.Block {
     internal func writePayload(into buffer: inout ByteBuffer) -> Int {
         switch self {
         case .plain(let text):
-            return buffer.writeString(text)
+            return buffer.writeString(text.replacingOccurrences(of: "\n", with: "\r\n"))
         case .html(let html):
             return buffer.writeString(html)
         case .alternative(let boundary, let text, let html):
-            return buffer.writeString("""
-            --\(boundary)
-            Content-Type: text/plain; charset=utf-8\r
-            Content-Transfer-Encoding: 8BIT\r
-
-            \(text)
-            --\(boundary)
-            Content-Type: text/html; charset=utf-8
-            Content-Transfer-Encoding: 8BIT
-
-            \(html)
-            --\(boundary)--
-            """)
+            return buffer.writeString("\r\n--\(boundary)\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8BIT\r\n\r\n\(text)\r\n--\(boundary)\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8BIT\r\n\r\n\(html)\r\n--\(boundary)--\r\n")
         case .image(let image):
             return buffer.writeString(image.base64)
         case .attachment(let attachment):
