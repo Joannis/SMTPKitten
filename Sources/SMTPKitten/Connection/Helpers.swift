@@ -21,3 +21,21 @@ extension Date {
         return smtpDateFormatter.string(from: self)
     }
 }
+
+extension SMTPReply {
+    func status(_ status: SMTPCode..., or error: Error? = nil) throws {
+        let error = error ?? SMTPClientError.commandFailed(code: code)
+
+        guard let currentStatus = SMTPCode(rawValue: code) else {
+            throw error
+        }
+
+        for neededStatus in status {
+            if currentStatus == neededStatus {
+                return
+            }
+        }
+
+        throw error
+    }
+}
