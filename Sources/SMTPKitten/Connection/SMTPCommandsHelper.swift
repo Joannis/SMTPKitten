@@ -1,10 +1,34 @@
 import NIOCore
 
+enum SMTPCredentials {
+    struct Plain {
+        let user: String
+        let password: String
+
+        var text: String {
+            "\0\(user)\0\(password)"
+        }
+    }
+}
+
+/// SMTP Authentication method.
+public struct SMTPAuthMethod {
+    internal enum _Method: String, CaseIterable {
+        case plain = "PLAIN"
+        case login = "LOGIN"
+    }
+
+    let method: _Method
+
+    public static let login = SMTPAuthMethod(method: .login)
+    public static let plain = SMTPAuthMethod(method: .plain)
+}
+
 enum _SMTPRequest: Sendable {
     case helo(hostname: String)
     case ehlo(hostname: String)
     case starttls
-    case authenticatePlain
+    case authenticatePlain(credentials: SMTPCredentials.Plain)
     case authenticateLogin
     case authenticateCramMd5
     case authenticateXOAuth2(credentials: String)
@@ -43,8 +67,8 @@ enum _SMTPRequest: Sendable {
             out.writeString("\r\n.")
         case .starttls:
             out.writeString("STARTTLS")
-        case .authenticatePlain:
-            out.writeString("AUTH PLAIN")
+        case .authenticatePlain(let credentials):
+            out.writeString("AUTH PLAIN \(credentials.text.base64Encoded)")
         case .authenticateLogin:
             out.writeString("AUTH LOGIN")
         case .authenticateCramMd5:

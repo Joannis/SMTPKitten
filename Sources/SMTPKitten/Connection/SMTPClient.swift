@@ -8,10 +8,22 @@ public actor SMTPClient {
     fileprivate let requests: AsyncStream<SMTPRequest>
     fileprivate let requestWriter: AsyncStream<SMTPRequest>.Continuation
     fileprivate var error: Error?
+    fileprivate var _handshake: SMTPHandshake?
+    internal var handshake: SMTPHandshake {
+        guard let _handshake else {
+            preconditionFailure("SMTPClient didn't set the SMTPHandshake after getting it")
+        }
 
-    init(channel: NIOAsyncChannel<SMTPReplyLine, ByteBuffer>) {
+        return _handshake
+    }
+
+    fileprivate init(channel: NIOAsyncChannel<SMTPReplyLine, ByteBuffer>) {
         self.channel = channel
         (requests, requestWriter) = AsyncStream.makeStream(of: SMTPRequest.self, bufferingPolicy: .unbounded)
+    }
+
+    fileprivate func setHandshake(to handshake: SMTPHandshake) {
+        self._handshake = handshake
     }
 
     internal func send(_ request: ByteBuffer) async throws -> SMTPReply {
@@ -38,12 +50,10 @@ public actor SMTPClient {
                             throw SMTPClientError.endOfStream
                         }
 
-                        print(String(buffer: lastLine.contents))
                         let code = lastLine.code
                         var lines = [lastLine]
 
                         while !lastLine.isLast, let nextLine = try await inboundIterator.next() {
-                            print(String(buffer: nextLine.contents))
                             guard nextLine.code == code else {
                                 throw SMTPClientError.protocolError
                             }
@@ -138,10 +148,12 @@ public actor SMTPClient {
                 requestWriter.yield(SMTPRequest(buffer: ByteBuffer(), continuation: continuation))
             }
             var handshake = try await client.handshake(hostname: host)
-            if case .startTLS(let tls) = ssl.mode, handshake.starttls {
+            if case .startTLS(let tls) = ssl.mode, handshake.capabilities.contains(.startTLS) {
                 try await client.starttls(configuration: tls, hostname: host)
                 handshake = try await client.handshake(hostname: host)
             }
+
+            await client.setHandshake(to: handshake)
             return try await perform(client)
         }
     }

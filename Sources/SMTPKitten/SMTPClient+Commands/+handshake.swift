@@ -1,41 +1,56 @@
 import Foundation
 
 internal struct SMTPHandshake {
-    let starttls: Bool
+    enum KnownCapability {
+        case startTLS
+        case mime8bit
+        case pipelining
+        case pipeconnect
+        case login
+        case loginPlain
+    }
 
-    init?(_ message: SMTPReply) {
-        guard SMTPCode(rawValue: message.code) == .commandOK else {
-            return nil
-        }
+    var capabilities = Set<KnownCapability>()
 
-        var starttls = false
+    init(_ message: SMTPReply) {
+        for line in message.lines {
+            let line = String(buffer: line)
 
-        for var line in message.lines {
-            if let string = line.readString(length: line.readableBytes) {
-                let capability = string.uppercased()
-
-                if capability == "STARTTLS" {
-                    starttls = true
+            switch line {
+            case "STARTTLS":
+                capabilities.insert(.startTLS)
+            case "8BITMIME":
+                capabilities.insert(.mime8bit)
+            case "PIPELINING":
+                capabilities.insert(.pipelining)
+            case "PIPECONNECT":
+                capabilities.insert(.pipeconnect)
+            case let auth where auth.hasPrefix("LOGIN"):
+                for method in auth.split(separator: " ").dropFirst() {
+                    switch method {
+                    case "PLAIN":
+                        capabilities.insert(.loginPlain)
+                    case "LOGIN":
+                        capabilities.insert(.login)
+                    default:
+                        ()
+                    }
                 }
+            default:
+                ()
             }
         }
-
-        self.starttls = starttls
     }
 }
 
 extension SMTPClient {
     internal func handshake(hostname: String) async throws -> SMTPHandshake {
         var message = try await send(.ehlo(hostname: hostname))
-        if let handshake = SMTPHandshake(message) {
-            return handshake
+        if message.isSuccessful {
+            return SMTPHandshake(message)
         }
 
         message = try await self.send(.helo(hostname: hostname))
-        guard let handshake = SMTPHandshake(message) else {
-            throw SMTPClientError.missingHandshake
-        }
-
-        return handshake
+        return SMTPHandshake(message)
     }
 }
