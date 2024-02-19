@@ -27,34 +27,41 @@ public actor SMTPClient {
                 var inboundIterator = inbound.makeAsyncIterator()
 
                 for await request in requests {
-                    if request.buffer.readableBytes > 0 {
-                        // The first "message" on a connection send by us is empty
-                        // Because we're expecting to read data here, not write
-                        try await outbound.write(request.buffer)
-                    }
-
-                    guard var lastLine = try await inboundIterator.next() else {
-                        throw SMTPClientError.endOfStream
-                    }
-
-                    let code = lastLine.code
-                    var lines = [lastLine]
-
-                    while !lastLine.isLast, let nextLine = try await inboundIterator.next() {
-                        guard nextLine.code == code else {
-                            throw SMTPClientError.protocolError
+                    do {
+                        if request.buffer.readableBytes > 0 {
+                            // The first "message" on a connection send by us is empty
+                            // Because we're expecting to read data here, not write
+                            try await outbound.write(request.buffer)
                         }
 
-                        lines.append(nextLine)
-                        lastLine = nextLine
-                    }
+                        guard var lastLine = try await inboundIterator.next() else {
+                            throw SMTPClientError.endOfStream
+                        }
 
-                    request.continuation.resume(
-                        returning: SMTPReply(
-                            code: code,
-                            lines: lines.map(\.contents)
+                        print(String(buffer: lastLine.contents))
+                        let code = lastLine.code
+                        var lines = [lastLine]
+
+                        while !lastLine.isLast, let nextLine = try await inboundIterator.next() {
+                            print(String(buffer: nextLine.contents))
+                            guard nextLine.code == code else {
+                                throw SMTPClientError.protocolError
+                            }
+
+                            lines.append(nextLine)
+                            lastLine = nextLine
+                        }
+
+                        request.continuation.resume(
+                            returning: SMTPReply(
+                                code: code,
+                                lines: lines.map(\.contents)
+                            )
                         )
-                    )
+                    } catch {
+                        request.continuation.resume(throwing: error)
+                        throw error
+                    }
                 }
             }
 
@@ -106,7 +113,8 @@ public actor SMTPClient {
                 }
 
                 try channel.pipeline.syncOperations.addHandlers(
-                    ByteToMessageHandler(LineBasedFrameDecoder())
+                    ByteToMessageHandler(LineBasedFrameDecoder()),
+                    ByteToMessageHandler(SMTPReplyDecoder())
                 )
 
                 let asyncChannel = try NIOAsyncChannel<SMTPReplyLine, ByteBuffer>(
@@ -125,9 +133,14 @@ public actor SMTPClient {
                 try await client.run()
             }
 
-            let handshake = try await client.handshake(hostname: host)
+            let requestWriter = client.requestWriter
+            _ = try await withCheckedThrowingContinuation { continuation in
+                requestWriter.yield(SMTPRequest(buffer: ByteBuffer(), continuation: continuation))
+            }
+            var handshake = try await client.handshake(hostname: host)
             if case .startTLS(let tls) = ssl.mode, handshake.starttls {
                 try await client.starttls(configuration: tls, hostname: host)
+                handshake = try await client.handshake(hostname: host)
             }
             return try await perform(client)
         }

@@ -25,10 +25,12 @@ struct SMTPReplyDecoder: ByteToMessageDecoder {
 
         switch buffer.readInteger() as UInt8? {
         case 0x2d: // - (hyphen, minus)
+            let buffer = buffer.readSlice(length: buffer.readableBytes)!
             let line = SMTPReplyLine(code: code, contents: buffer, isLast: false)
             context.fireChannelRead(wrapInboundOut(line))
             return .continue
         case 0x20: // Space
+            let buffer = buffer.readSlice(length: buffer.readableBytes)!
             let line = SMTPReplyLine(code: code, contents: buffer, isLast: true)
             context.fireChannelRead(wrapInboundOut(line))
             return .continue

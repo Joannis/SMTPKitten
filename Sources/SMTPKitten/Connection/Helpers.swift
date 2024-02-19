@@ -38,4 +38,10 @@ extension SMTPReply {
 
         throw error
     }
+
+    func isSuccessful(or error: Error? = nil) throws {
+        guard self.isSuccessful else {
+            throw error ?? SMTPClientError.commandFailed(code: code)
+        }
+    }
 }
