@@ -115,7 +115,7 @@ extension Mail {
 
     /// Generates the headers of the mail.
     internal var headers: [String: String] {
-        var headers = content.headers
+        var headers = customHeaders
         headers.reserveCapacity(16)
 
         headers["MIME-Version"] = "1.0"

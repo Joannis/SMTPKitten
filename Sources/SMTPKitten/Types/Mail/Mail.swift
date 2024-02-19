@@ -20,6 +20,9 @@ public struct Mail: Sendable {
     /// The blind carbon copy recipients of the mail. This is a set of `MailUser` structs that contain the name and email address of the recipients.
     public var bcc: Set<MailUser>
 
+    /// Adds custom headers and overwrites the implicitly created ones. Use this property to add headers relevant for sending bulk emails, such as `List-Unsubscribe` or `Precedence` headers.
+    public var customHeaders: [String: String]
+
     /// The subject of the mail.
     public var subject: String
 
@@ -31,6 +34,8 @@ public struct Mail: Sendable {
         from: MailUser,
         to: Set<MailUser>,
         cc: Set<MailUser> = [],
+        bcc: Set<MailUser> = [],
+        customHeaders: [String: String] = [:],
         subject: String,
         content: Content
     ) {
@@ -38,7 +43,8 @@ public struct Mail: Sendable {
         self.from = from
         self.to = to
         self.cc = cc
-        self.bcc = []
+        self.bcc = bcc
+        self.customHeaders = customHeaders
         self.subject = subject
         self.content = content
     }
