@@ -1,5 +1,5 @@
 extension SMTPClient {
-    public func login(user: String, password: String) async throws {
+    public func loginPlain(user: String, password: String) async throws {
         try await send(.authenticateLogin)
             .status(.containingChallenge, or: SMTPClientError.loginFailed)
 
