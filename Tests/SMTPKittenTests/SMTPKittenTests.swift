@@ -68,9 +68,9 @@ final class SMTPKittenTests: XCTestCase {
         let attachment = try Data(contentsOf: URL(filePath: attachmentPath))
 
         var contents: [MailContentConvertible] = [
-            "Welcome to our app, you're all set up & stuff."
-            Mail.Image.png(image, filename: "Screenshot.png")
-            Mail.Content.alternative("**End** of mail btw.", html: "<b>End</b> of mail btw.")
+            "Welcome to our app, you're all set up & stuff.",
+            Mail.Image.png(image, filename: "Screenshot.png"),
+            Mail.Content.alternative("**End** of mail btw.", html: "<b>End</b> of mail btw."),
             Mail.Attachment(attachment, mimeType: "application/pdf")
         ]
         
@@ -97,9 +97,4 @@ final class SMTPKittenTests: XCTestCase {
         
         try await client.sendMail(mail)
     }
-    
-    static var allTests = [
-        ("testExample", testExample),
-        ("testMutableContentExample", testMutableContentExample),
-    ]
 }
