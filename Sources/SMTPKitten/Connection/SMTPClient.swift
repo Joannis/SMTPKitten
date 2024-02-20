@@ -127,10 +127,7 @@ public actor SMTPClient {
                     ByteToMessageHandler(SMTPReplyDecoder())
                 )
 
-                let asyncChannel = try NIOAsyncChannel<SMTPReplyLine, ByteBuffer>(
-                    wrappingChannelSynchronously: channel,
-                    configuration: .init()
-                )
+                let asyncChannel = try NIOAsyncChannel<SMTPReplyLine, ByteBuffer>(synchronouslyWrapping: channel)
                 return channel.eventLoop.makeSucceededFuture(asyncChannel)
             } catch {
                 return channel.eventLoop.makeFailedFuture(error)
