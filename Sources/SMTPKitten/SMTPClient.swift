@@ -110,6 +110,7 @@ internal final class SMTPClientContext {
 
 internal struct SMTPHandshake {
     let starttls: Bool
+    let auth: Set<SMTPAuthMethod>
     
     init?(_ message: SMTPServerMessage) {
         guard message.responseCode == .commandOK else {
@@ -117,6 +118,7 @@ internal struct SMTPHandshake {
         }
         
         var starttls = false
+        var auth = Set<SMTPAuthMethod>()
         
         for line in message.lines {
             let capability = line.uppercased()
@@ -124,9 +126,15 @@ internal struct SMTPHandshake {
             if capability == "STARTTLS" {
                 starttls = true
             }
+            
+            
+            if line.contains("AUTH"), auth.isEmpty {
+                auth = Set(line.components(separatedBy: " ").compactMap { SMTPAuthMethod(rawValue: $0) })
+            }
         }
         
         self.starttls = starttls
+        self.auth = auth
     }
 }
 
@@ -316,15 +324,51 @@ public final class SMTPClient {
         try await self.channel.pipeline.addHandler(sslHandler, position: .first)
     }
     
-    public func login(user: String, password: String) async throws {
-        try await send(.authenticateLogin)
-            .status(.containingChallenge, or: SMTPError.loginFailure)
-        
-        try await send(.authenticateUser(user))
-            .status(.containingChallenge, or: SMTPError.loginFailure)
-        
-        try await self.send(.authenticatePassword(password))
-            .status(.authSucceeded, or: SMTPError.loginFailure)
+    public func login(user: String, password: String, force method: SMTPAuthMethod? = nil) async throws {
+        if let method {
+            // If desired login method is specified - use it and ignore server's capatiblities
+            try await auth(using: method, user: user, password: password)
+        } else if let auth = self.handshake?.auth {
+            // Check which auth options are available and use one of that
+            var methods = auth.sorted(by: { $0.priority < $1.priority })
+            var lastError: Error?
+            while let method = methods.popLast() {
+                do {
+                    try await self.auth(using: method, user: user, password: password)
+                    lastError = nil
+                    break
+                } catch {
+                    lastError = error
+                    continue
+                }
+            }
+            if let lastError {
+                throw lastError
+            }
+        } else {
+            // Use LOGIN method as default one
+            try await auth(using: .login, user: user, password: password)
+        }
+    }
+    
+    private func auth(using method: SMTPAuthMethod, user: String, password: String) async throws {
+        switch method {
+        case .plain:
+            try await send(.authenticatePlain(SMTPPlainCreds(user: user, password: password)))
+                .status(.authSucceeded, or: SMTPError.loginFailure)
+        case .login:
+            try await send(.authenticateLogin)
+                .status(.containingChallenge, or: SMTPError.loginFailure)
+            
+            try await send(.authenticateUser(user))
+                .status(.containingChallenge, or: SMTPError.loginFailure)
+            
+            try await self.send(.authenticatePassword(password))
+                .status(.authSucceeded, or: SMTPError.loginFailure)
+        case .crammd5:
+            assertionFailure("Unsupported for now")
+            throw SMTPError.incompatibleAuthMethod(method)
+        }
     }
     
     public func sendMail(_ mail: Mail) async throws {
