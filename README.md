@@ -15,14 +15,19 @@ And add it as a dependency of your target:
 ### Create a connection
 
 ```swift
-let client = try await SMTPClient.connect(
-    hostname: "smtp.example.com",
-    ssl: .startTLS(configuration: .default)
-)
-try await client.login(
-    user: "noreply@example.com",
-    password: "pas$w0rd"
-)
+try await SMTPClient.withConnection(
+    to: "localhost",
+    port: 1025,
+    ssl: .insecure
+) { client in
+    // 1. Authenticate
+    try await client.login(
+        user: "xxxxxx",
+        password: "hunter2"
+    )
+    
+    // 2. Send emails
+}
 ```
 
 ### Sending Emails
@@ -34,32 +39,13 @@ let mail = Mail(
     from: MailUser(name: "My Mailer", email: "noreply@example.com"),
     to: [MailUser(name: "John Doe", email: "john.doe@example.com")],
     subject: "Welcome to our app!",
-    contentType: .plain,
-    text: "Welcome to our app, you're all set up & stuff."
+    content: .plain("Welcome to our app, you're all set up & stuff.")
 )
 
 try await client.sendMail(mail)
 ```
 
-You can also use a result builder pattern for creating emails.
-
-```swift
-let image = try Data(contentsOf: URL(filePath: imagePath))
-let attachment = try Data(contentsOf: URL(filePath: attachmentPath))
-
-let mail = Mail(
-    from: MailUser(name: "SMTPKitten Tester", email: "noreply@example.com"),
-    to: ["joannis@unbeatable.software"],
-    subject: "Welcome to our app!"
-) {
-    "Welcome to our app, you're all set up & stuff."
-    Mail.Image.png(image, filename: "Screenshot.png")
-    Mail.Content.alternative("**End** of mail btw.", html: "<b>End</b> of mail btw.")
-    Mail.Attachment(attachment, mimeType: "application/pdf")
-}
-
-try await client.sendMail(mail)
-```
+The `Mail.Content` type supports various other types of information including HTML, Alternative (HTML with Plaintext fallback) and multipart.
 
 ### Community
 
