@@ -1,9 +1,9 @@
-# SMTPKitten
+<a href="https://unbeatable.software"><img src="./assets/SMTPKitten.png" /></a>
 
 To get started, add the SMTPKitten dependency:
 
 ```swift
-.package(url: "https://github.com/joannis/SMTPKitten.git", from: "0.2.0"),
+.package(url: "https://github.com/joannis/SMTPKitten.git", from: "1.0.0"),
 ```
 
 And add it as a dependency of your target:

@@ -3,37 +3,50 @@ import NIOPosix
 import NIOExtras
 import NIOSSL
 
-public actor SMTPClient {
+public final class SMTPClient {
+    public struct Handle: ~Copyable, Sendable {
+        enum State {
+            case preparing(AsyncStream<SMTPRequest>.Continuation)
+            case prepared(AsyncStream<SMTPRequest>.Continuation, handshake: SMTPHandshake)
+
+            var requestWriter: AsyncStream<SMTPRequest>.Continuation {
+                switch self {
+                case .preparing(let continuation):
+                    return continuation
+                case .prepared(let continuation, _):
+                    return continuation
+                }
+            }
+        }
+
+        var state: State
+        var handshake: SMTPHandshake {
+            guard case let .prepared(_, handshake) = state else {
+                preconditionFailure("SMTPClient didn't set the SMTPHandshake after getting it")
+            }
+
+            return handshake
+        }
+
+        internal func send(_ request: ByteBuffer) async throws -> SMTPReply {
+            try await withCheckedThrowingContinuation { continuation in
+                let request = SMTPRequest(buffer: request, continuation: continuation)
+                state.requestWriter.yield(request)
+            }
+        }
+    }
+
     let channel: NIOAsyncChannel<SMTPReplyLine, ByteBuffer>
     fileprivate let requests: AsyncStream<SMTPRequest>
     fileprivate let requestWriter: AsyncStream<SMTPRequest>.Continuation
     fileprivate var error: Error?
-    fileprivate var _handshake: SMTPHandshake?
-    internal var handshake: SMTPHandshake {
-        guard let _handshake else {
-            preconditionFailure("SMTPClient didn't set the SMTPHandshake after getting it")
-        }
-
-        return _handshake
-    }
 
     fileprivate init(channel: NIOAsyncChannel<SMTPReplyLine, ByteBuffer>) {
         self.channel = channel
         (requests, requestWriter) = AsyncStream.makeStream(of: SMTPRequest.self, bufferingPolicy: .unbounded)
     }
 
-    fileprivate func setHandshake(to handshake: SMTPHandshake) {
-        self._handshake = handshake
-    }
-
-    internal func send(_ request: ByteBuffer) async throws -> SMTPReply {
-        try await withCheckedThrowingContinuation { continuation in
-            let request = SMTPRequest(buffer: request, continuation: continuation)
-            requestWriter.yield(request)
-        }
-    }
-
-    internal func run() async throws {
+    private func run() async throws -> Never {
         do {
             try await channel.executeThenClose { inbound, outbound in
                 var inboundIterator = inbound.makeAsyncIterator()
@@ -79,6 +92,8 @@ public actor SMTPClient {
             for await request in requests {
                 request.continuation.resume(throwing: SMTPClientError.endOfStream)
             }
+
+            throw CancellationError()
         } catch {
             self.error = error
             requestWriter.finish()
@@ -89,24 +104,11 @@ public actor SMTPClient {
         }
     }
 
-    nonisolated fileprivate func starttls(
-        configuration: SMTPSSLConfiguration,
-        hostname: String
-    ) async throws {
-        try await send(.starttls)
-            .status(.serviceReady, or: SMTPClientError.startTLSFailure)
-
-        let sslContext = try NIOSSLContext(configuration: configuration.configuration.makeTlsConfiguration())
-        let sslHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: hostname)
-
-        try await self.channel.channel.pipeline.addHandler(sslHandler, position: .first)
-    }
-
     public static func withConnection<T>(
         to host: String,
         port: Int = 587,
         ssl: SMTPSSLMode,
-        perform: (SMTPClient) async throws -> T
+        perform: @escaping (inout SMTPClient.Handle) async throws -> T
     ) async throws -> T {
         let asyncChannel: NIOAsyncChannel<SMTPReplyLine, ByteBuffer> = try await ClientBootstrap(
             group: NIOSingletons.posixEventLoopGroup
@@ -127,7 +129,9 @@ public actor SMTPClient {
                     ByteToMessageHandler(SMTPReplyDecoder())
                 )
 
-                let asyncChannel = try NIOAsyncChannel<SMTPReplyLine, ByteBuffer>(synchronouslyWrapping: channel)
+                let asyncChannel = try NIOAsyncChannel<SMTPReplyLine, ByteBuffer>(
+                    wrappingChannelSynchronously: channel
+                )
                 return channel.eventLoop.makeSucceededFuture(asyncChannel)
             } catch {
                 return channel.eventLoop.makeFailedFuture(error)
@@ -135,23 +139,60 @@ public actor SMTPClient {
         }
 
         let client = SMTPClient(channel: asyncChannel)
-        return try await withThrowingTaskGroup(of: Void.self) { group in
+        return try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                var handle = Handle(
+                    state: .preparing(client.requestWriter)
+                )
+                // An empty buffer is sent, which the networking layer doesn't (need to) write
+                // This happens because the first message is always sent by the server
+                // directly after accepting a client
+                let serverHello = try await handle.send(ByteBuffer())
+
+                guard serverHello.isSuccessful else {
+                    throw SMTPClientError.commandFailed(code: serverHello.code)
+                }
+
+                // After being accepted as a client, SMTP is request-response based
+                var handshake = try await handle.handshake(hostname: host)
+
+                if case .startTLS(let tls) = ssl.mode, handshake.capabilities.contains(.startTLS) {
+                    try await handle.starttls(
+                        configuration: tls,
+                        hostname: host,
+                        channel: client.channel.channel
+                    )
+                    handshake = try await handle.handshake(hostname: host)
+                }
+
+                handle.state = .prepared(client.requestWriter, handshake: handshake)
+                return try await perform(&handle)
+            }
+
             group.addTask {
                 try await client.run()
             }
-
-            let requestWriter = client.requestWriter
-            _ = try await withCheckedThrowingContinuation { continuation in
-                requestWriter.yield(SMTPRequest(buffer: ByteBuffer(), continuation: continuation))
+            guard let result = try await group.next() else {
+                throw CancellationError()
             }
-            var handshake = try await client.handshake(hostname: host)
-            if case .startTLS(let tls) = ssl.mode, handshake.capabilities.contains(.startTLS) {
-                try await client.starttls(configuration: tls, hostname: host)
-                handshake = try await client.handshake(hostname: host)
-            }
-
-            await client.setHandshake(to: handshake)
-            return try await perform(client)
+            group.cancelAll()
+            return result
         }
+    }
+}
+
+extension SMTPClient.Handle {
+    fileprivate func starttls(
+        configuration: SMTPSSLConfiguration,
+        hostname: String,
+        channel: Channel
+    ) async throws {
+        try await send(.starttls)
+            .status(.serviceReady, or: SMTPClientError.startTLSFailure)
+
+        let sslContext = try NIOSSLContext(configuration: configuration.configuration.makeTlsConfiguration())
+        let sslHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: hostname)
+
+        try await channel.pipeline.addHandler(sslHandler, position: .first).get()
     }
 }

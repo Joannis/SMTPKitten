@@ -1,4 +1,4 @@
-extension SMTPClient {
+extension SMTPClient.Handle {
     internal func selectAuthMethod() -> SMTPAuthMethod {
         if handshake.capabilities.contains(.loginPlain) {
             return .plain

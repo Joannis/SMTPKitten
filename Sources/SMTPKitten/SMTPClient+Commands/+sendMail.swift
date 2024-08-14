@@ -1,4 +1,4 @@
-extension SMTPClient {
+extension SMTPClient.Handle {
     public func sendMail(_ mail: Mail) async throws {
         var recipients = [MailUser]()
 

@@ -89,9 +89,9 @@ enum _SMTPRequest: Sendable {
     }
 }
 
-extension SMTPClient {
+extension SMTPClient.Handle {
     func send(_ request: _SMTPRequest) async throws -> SMTPReply {
-        var buffer = channel.channel.allocator.buffer(capacity: 4096)
+        var buffer = ByteBufferAllocator().buffer(capacity: 4096)
         request.write(into: &buffer)
         return try await send(buffer)
     }
