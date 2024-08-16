@@ -1,5 +1,6 @@
 import NIOCore
 import Foundation
+import MultipartKit
 
 extension Mail.Content.Block {
     var headers: [String: String] {
@@ -45,26 +46,33 @@ extension Mail.Content.Block {
     }
 
     @discardableResult
-    internal func writePayload(into buffer: inout ByteBuffer) -> Int {
+    internal func writePayload(into buffer: inout ByteBuffer) throws -> Int {
         switch self {
         case .plain(let text):
             return buffer.writeString(text)
         case .html(let html):
             return buffer.writeString(html)
         case .alternative(let boundary, let text, let html):
-            return buffer.writeString("""
-            --\(boundary)
-            Content-Type: text/plain; charset=utf-8\r
-            Content-Transfer-Encoding: 8bit\r
-            \r
-            \(text)\r
-            --\(boundary)\r
-            Content-Type: text/html; charset=utf-8\r
-            Content-Transfer-Encoding: 8bit\r
-            \r
-            \(html)\r
-            --\(boundary)--
-            """)
+            let writtenBytes = buffer.writerIndex
+            try MultipartSerializer().serialize(
+                parts: [
+                    MultipartPart(
+                        headers: [
+                            "Content-Type": "text/plain; charset=utf-8",
+                        ],
+                        body: text
+                    ),
+                    MultipartPart(
+                        headers: [
+                            "Content-Type": "text/html; charset=utf-8",
+                        ],
+                        body: html
+                    )
+                ],
+                boundary: boundary,
+                into: &buffer
+            )
+            return buffer.writerIndex - writtenBytes
         case .image(let image):
             return buffer.writeString(image.base64)
         case .attachment(let attachment):
@@ -86,7 +94,7 @@ extension Mail.Content {
     }
 
     @discardableResult
-    internal func writePayload(into buffer: inout ByteBuffer) -> Int {
+    internal func writePayload(into buffer: inout ByteBuffer) throws -> Int {
         switch _content {
         case .multipart(boundary: let boundary, blocks: let blocks):
             var written = 0
@@ -99,13 +107,13 @@ extension Mail.Content {
                 
                 """)
 
-                written += block.writePayload(into: &buffer)
+                written += try block.writePayload(into: &buffer)
                 written += buffer.writeString("\n")
             }
 
             return written
         case .single(let block):
-            return block.writePayload(into: &buffer)
+            return try block.writePayload(into: &buffer)
         }
     }
 }

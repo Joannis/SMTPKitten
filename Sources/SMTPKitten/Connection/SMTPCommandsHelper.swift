@@ -41,7 +41,7 @@ enum _SMTPRequest: Sendable {
     case startMailData
     case mailData(Mail)
 
-    func write(into out: inout ByteBuffer, forHost host: String) {
+    func write(into out: inout ByteBuffer, forHost host: String) throws {
         switch self {
         case .helo(let hostname):
             out.writeString("HELO ")
@@ -63,7 +63,7 @@ enum _SMTPRequest: Sendable {
             headersText += "Content-Transfer-Encoding: 8bit\r\n"
             out.writeString(headersText)
             out.writeString("\r\n")
-            mail.content.writePayload(into: &out)
+            try mail.content.writePayload(into: &out)
             out.writeString("\r\n.")
         case .starttls:
             out.writeString("STARTTLS")
@@ -92,7 +92,7 @@ enum _SMTPRequest: Sendable {
 extension SMTPClient.Handle {
     func send(_ request: _SMTPRequest) async throws -> SMTPReply {
         var buffer = ByteBufferAllocator().buffer(capacity: 4096)
-        request.write(into: &buffer, forHost: host)
+        try request.write(into: &buffer, forHost: host)
         return try await send(buffer)
     }
 }

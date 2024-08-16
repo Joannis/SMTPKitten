@@ -15,6 +15,8 @@ let package = Package(
             targets: ["SMTPKitten"]),
     ],
     dependencies: [
+        .package(url: "https://github.com/vapor/multipart-kit.git", from: "4.7.0"),
+
         // 🚀
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.60.0"),
         .package(url: "https://github.com/apple/swift-nio-extras.git", from: "1.0.0"),
@@ -28,6 +30,8 @@ let package = Package(
         .target(
             name: "SMTPKitten",
             dependencies: [
+                .product(name: "MultipartKit", package: "multipart-kit"),
+                
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
                 .product(name: "NIOFoundationCompat", package: "swift-nio"),
