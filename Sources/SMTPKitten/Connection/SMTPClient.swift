@@ -19,7 +19,9 @@ public final class SMTPClient {
             }
         }
 
+        let host: String
         var state: State
+
         var handshake: SMTPHandshake {
             guard case let .prepared(_, handshake) = state else {
                 preconditionFailure("SMTPClient didn't set the SMTPHandshake after getting it")
@@ -142,6 +144,7 @@ public final class SMTPClient {
         return try await withThrowingTaskGroup(of: T.self) { group in
             group.addTask {
                 var handle = Handle(
+                    host: host,
                     state: .preparing(client.requestWriter)
                 )
                 // An empty buffer is sent, which the networking layer doesn't (need to) write

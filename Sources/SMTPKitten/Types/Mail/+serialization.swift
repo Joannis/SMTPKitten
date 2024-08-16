@@ -14,7 +14,7 @@ extension Mail.Content.Block {
             ]
         case .alternative(let boundary, _, _):
             return [
-                "Content-Type": "multipart/alternative; boundary=\(boundary)",
+                "Content-Type": "multipart/alternative; boundary=\"\(boundary)\"",
             ]
         case .image(let image):
             var disposition = image.contentDisposition.disposition.rawValue
@@ -55,14 +55,14 @@ extension Mail.Content.Block {
             return buffer.writeString("""
             --\(boundary)
             Content-Type: text/plain; charset=utf-8\r
-            Content-Transfer-Encoding: 8BIT\r
-
-            \(text)
-            --\(boundary)
-            Content-Type: text/html; charset=utf-8
-            Content-Transfer-Encoding: 8BIT
-
-            \(html)
+            Content-Transfer-Encoding: 8bit\r
+            \r
+            \(text)\r
+            --\(boundary)\r
+            Content-Type: text/html; charset=utf-8\r
+            Content-Transfer-Encoding: 8bit\r
+            \r
+            \(html)\r
             --\(boundary)--
             """)
         case .image(let image):
@@ -93,10 +93,10 @@ extension Mail.Content {
             for block in blocks {
                 let headers = block.headers.map { "\($0): \($1)" }.joined(separator: "\r\n")
                 written += buffer.writeString("""
-                --\(boundary)
-                \(headers)
-
-
+                --\(boundary)\r
+                \(headers)\r
+                \r
+                
                 """)
 
                 written += block.writePayload(into: &buffer)
@@ -114,12 +114,15 @@ extension Mail {
     // TODO: Attachments
 
     /// Generates the headers of the mail.
-    internal var headers: [String: String] {
-        var headers = customHeaders
+    internal func headers(forHost host: String) -> [String: String] {
+        var headers = content.headers
+        for (key, value) in customHeaders {
+            headers[key] = value
+        }
         headers.reserveCapacity(16)
 
         headers["MIME-Version"] = "1.0"
-        headers["Message-Id"] = "<\(UUID().uuidString)@localhost>"
+        headers["Message-Id"] = "<\(UUID().uuidString)@\(host)>"
         headers["Date"] = Date().smtpFormatted
         headers["From"] = from.smtpFormatted
         headers["To"] = to.map(\.smtpFormatted)
