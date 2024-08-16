@@ -50,7 +50,7 @@ enum _SMTPRequest: Sendable {
             out.writeString("EHLO ")
             out.writeString(hostname)
         case .startMail(let mail):
-            out.writeString("MAIL FROM: <\(mail.from.email)> BODY=8BITMIME")
+            out.writeString("MAIL FROM: <\(mail.from.email)>")
         case .mailRecipient(let address):
             out.writeString("RCPT TO: <\(address)>")
         case .startMailData:
