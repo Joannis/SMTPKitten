@@ -1,0 +1,42 @@
+name: test
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+on:
+    pull_request: { types: [opened, reopened, synchronize, ready_for_review] }
+    push: { branches: [main] }
+
+env:
+    LOG_LEVEL: info
+    SWIFT_DETERMINISTIC_HASHING: 1
+jobs:
+    test:
+    services:
+        mailpit:
+        image: axllent/mailpit:latest
+        ports:
+            # web UI - we don't need in CI
+            # - 8025:8025
+            - 1025:1025
+        environment:
+            MP_MAX_MESSAGES: 100
+            MP_SMTP_AUTH_ACCEPT_ANY: 1
+            MP_SMTP_AUTH_ALLOW_INSECURE: 1
+        options: >-
+            --health-cmd pg_isready
+            --health-interval 10s
+            --health-timeout 5s
+            --health-retries 5
+    runs-on: ubuntu-latest
+    container: swift:5.10-jammy
+    steps:
+        - uses: actions/checkout@v4
+        - name: Resolve
+          run: swift package resolve
+        - name: Run tests
+          run: swift test
+          env:
+              SWIFT_DETERMINISTIC_HASHING: 1
+              SMTP_HOSTNAME: mailpit
+              SMTP_USER: 00000
+              SMTP_PASSWORD: 00000
