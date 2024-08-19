@@ -39,3 +39,6 @@ jobs:
                   SMTP_HOSTNAME: mailpit
                   SMTP_USER: 00000
                   SMTP_PASSWORD: 00000
+                  # TODO: pass actual values
+                  TEST_IMAGE_PATH: ""
+                  TEST_ATTACHMENT_PATH: ""
