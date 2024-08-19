@@ -56,9 +56,9 @@ final class SMTPKittenTests: XCTestCase {
         let environment = ProcessInfo.processInfo.environment
 
         guard
-            let hostname = environment["TEST_HOST"],
-            let username = environment["TEST_USERNAME"],
-            let password = environment["TEST_PASSWORD"],
+            let hostname = environment["SMTP_HOSTNAME"],
+            let username = environment["SMTP_USER"],
+            let password = environment["SMTP_PASSWORD"],
             let imagePath = environment["TEST_IMAGE_PATH"],
             let attachmentPath = environment["TEST_ATTACHMENT_PATH"]
         else {
