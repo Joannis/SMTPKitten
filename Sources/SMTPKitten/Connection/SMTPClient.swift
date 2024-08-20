@@ -49,60 +49,62 @@ public final class SMTPClient {
     }
 
     private func run() async throws -> Never {
-        do {
-            try await channel.executeThenClose { inbound, outbound in
-                var inboundIterator = inbound.makeAsyncIterator()
+        try await withTaskCancellationHandler {
+            do {
+                try await channel.executeThenClose { inbound, outbound in
+                    var inboundIterator = inbound.makeAsyncIterator()
 
-                for await request in requests {
-                    do {
-                        if request.buffer.readableBytes > 0 {
-                            // The first "message" on a connection send by us is empty
-                            // Because we're expecting to read data here, not write
-                            try await outbound.write(request.buffer)
-                        }
-
-                        guard var lastLine = try await inboundIterator.next() else {
-                            throw SMTPClientError.endOfStream
-                        }
-
-                        let code = lastLine.code
-                        var lines = [lastLine]
-
-                        while !lastLine.isLast, let nextLine = try await inboundIterator.next() {
-                            guard nextLine.code == code else {
-                                throw SMTPClientError.protocolError
+                    for await request in requests {
+                        do {
+                            if request.buffer.readableBytes > 0 {
+                                // The first "message" on a connection send by us is empty
+                                // Because we're expecting to read data here, not write
+                                try await outbound.write(request.buffer)
                             }
 
-                            lines.append(nextLine)
-                            lastLine = nextLine
-                        }
+                            guard var lastLine = try await inboundIterator.next() else {
+                                throw SMTPClientError.endOfStream
+                            }
 
-                        request.continuation.resume(
-                            returning: SMTPReply(
-                                code: code,
-                                lines: lines.map(\.contents)
+                            let code = lastLine.code
+                            var lines = [lastLine]
+
+                            while !lastLine.isLast, let nextLine = try await inboundIterator.next() {
+                                guard nextLine.code == code else {
+                                    throw SMTPClientError.protocolError
+                                }
+
+                                lines.append(nextLine)
+                                lastLine = nextLine
+                            }
+
+                            request.continuation.resume(
+                                returning: SMTPReply(
+                                    code: code,
+                                    lines: lines.map(\.contents)
+                                )
                             )
-                        )
-                    } catch {
-                        request.continuation.resume(throwing: error)
-                        throw error
+                        } catch {
+                            request.continuation.resume(throwing: error)
+                            throw error
+                        }
                     }
                 }
-            }
 
-            requestWriter.finish()
-            for await request in requests {
-                request.continuation.resume(throwing: SMTPClientError.endOfStream)
-            }
+                for await request in requests {
+                    request.continuation.resume(throwing: SMTPClientError.endOfStream)
+                }
 
-            throw CancellationError()
-        } catch {
-            self.error = error
-            requestWriter.finish()
-            for await request in requests {
-                request.continuation.resume(throwing: error)
+                throw CancellationError()
+            } catch {
+                self.error = error
+                for await request in requests {
+                    request.continuation.resume(throwing: error)
+                }
+                throw error
             }
-            throw error
+        } onCancel: {
+            requestWriter.finish()
         }
     }
 
