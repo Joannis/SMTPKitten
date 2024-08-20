@@ -39,6 +39,6 @@ jobs:
                   SMTP_HOSTNAME: mailpit
                   SMTP_USER: 00000
                   SMTP_PASSWORD: 00000
-                  # TODO: pass actual values
-                  TEST_IMAGE_PATH: "https://picsum.photos/200/300"
-                  TEST_ATTACHMENT_PATH: "https://s2.q4cdn.com/175719177/files/doc_presentations/Placeholder-PDF.pdf"
+                  SMTP_PORT: 1025
+                  TEST_IMAGE_PATH: "Screenshot.png"
+                  TEST_ATTACHMENT_PATH: "Screenshot.png"
