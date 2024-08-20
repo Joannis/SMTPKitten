@@ -40,5 +40,5 @@ jobs:
                   SMTP_USER: 00000
                   SMTP_PASSWORD: 00000
                   # TODO: pass actual values
-                  TEST_IMAGE_PATH: ""
-                  TEST_ATTACHMENT_PATH: ""
+                  TEST_IMAGE_PATH: "https://picsum.photos/200/300"
+                  TEST_ATTACHMENT_PATH: "https://s2.q4cdn.com/175719177/files/doc_presentations/Placeholder-PDF.pdf"
