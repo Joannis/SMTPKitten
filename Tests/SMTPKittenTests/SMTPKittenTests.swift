@@ -2,10 +2,18 @@ import XCTest
 import SMTPKitten
 
 final class SMTPKittenTests: XCTestCase {
+    var port: Int {
+        ProcessInfo.processInfo.environment["SMTP_PORT"].flatMap(Int.init) ?? 1025
+    }
+
+    var hostname: String {
+        ProcessInfo.processInfo.environment["SMTP_HOSTNAME"] ?? "localhost"
+    }
+
     func testBasics() async throws {
         try await SMTPClient.withConnection(
-            to: "localhost",
-            port: 1025,
+            to: hostname,
+            port: port,
             ssl: .insecure
         ) { client in
             try await client.sendMail(
@@ -23,8 +31,8 @@ final class SMTPKittenTests: XCTestCase {
         let html = "<p>Hello, from Swift!</p>"
 
         try await SMTPClient.withConnection(
-            to: "localhost",
-            port: 1025,
+            to: hostname,
+            port: port,
             ssl: .insecure
         ) { client in
             let mail = Mail(
