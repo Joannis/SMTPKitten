@@ -6,7 +6,8 @@ public struct MailUser: Hashable, Sendable {
     /// The user's email address.
     public let email: String
 
-    public init(name: String?, email: String) {
+    /// A new mail user with an optional name.
+    public init(name: String? = nil, email: String) {
         self.name = name
         self.email = email
     }
