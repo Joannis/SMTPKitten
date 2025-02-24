@@ -43,7 +43,7 @@ internal struct SMTPHandshake {
     }
 }
 
-extension SMTPClient.Handle {
+extension SMTPConnection.Handle {
     internal func handshake(hostname: String) async throws -> SMTPHandshake {
         var message = try await send(.ehlo(hostname: hostname))
         if message.isSuccessful {

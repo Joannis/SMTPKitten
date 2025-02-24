@@ -3,7 +3,7 @@ import NIOPosix
 import NIOExtras
 import NIOSSL
 
-public final class SMTPClient {
+public actor SMTPConnection {
     public struct Handle: ~Copyable, Sendable {
         enum State {
             case preparing(AsyncStream<SMTPRequest>.Continuation)
@@ -24,7 +24,7 @@ public final class SMTPClient {
 
         var handshake: SMTPHandshake {
             guard case let .prepared(_, handshake) = state else {
-                preconditionFailure("SMTPClient didn't set the SMTPHandshake after getting it")
+                preconditionFailure("SMTPConnection didn't set the SMTPHandshake after getting it")
             }
 
             return handshake
@@ -38,10 +38,11 @@ public final class SMTPClient {
         }
     }
 
-    let channel: NIOAsyncChannel<SMTPReplyLine, ByteBuffer>
+    internal let channel: NIOAsyncChannel<SMTPReplyLine, ByteBuffer>
     fileprivate let requests: AsyncStream<SMTPRequest>
     fileprivate let requestWriter: AsyncStream<SMTPRequest>.Continuation
     fileprivate var error: Error?
+    internal var isOpen = false
 
     fileprivate init(channel: NIOAsyncChannel<SMTPReplyLine, ByteBuffer>) {
         self.channel = channel
@@ -51,7 +52,9 @@ public final class SMTPClient {
     private func run() async throws -> Never {
         try await withTaskCancellationHandler {
             do {
+                defer { isOpen = false }
                 try await channel.executeThenClose { inbound, outbound in
+                    self.isOpen = true
                     var inboundIterator = inbound.makeAsyncIterator()
 
                     for await request in requests {
@@ -63,7 +66,7 @@ public final class SMTPClient {
                             }
 
                             guard var lastLine = try await inboundIterator.next() else {
-                                throw SMTPClientError.endOfStream
+                                throw SMTPConnectionError.endOfStream
                             }
 
                             let code = lastLine.code
@@ -71,7 +74,7 @@ public final class SMTPClient {
 
                             while !lastLine.isLast, let nextLine = try await inboundIterator.next() {
                                 guard nextLine.code == code else {
-                                    throw SMTPClientError.protocolError
+                                    throw SMTPConnectionError.protocolError
                                 }
 
                                 lines.append(nextLine)
@@ -92,7 +95,7 @@ public final class SMTPClient {
                 }
 
                 for await request in requests {
-                    request.continuation.resume(throwing: SMTPClientError.endOfStream)
+                    request.continuation.resume(throwing: SMTPConnectionError.endOfStream)
                 }
 
                 throw CancellationError()
@@ -112,10 +115,10 @@ public final class SMTPClient {
         to host: String,
         port: Int = 587,
         ssl: SMTPSSLMode,
-        perform: @escaping (inout SMTPClient.Handle) async throws -> T
+        perform: @escaping (inout SMTPConnection.Handle) async throws -> T
     ) async throws -> T {
         let asyncChannel: NIOAsyncChannel<SMTPReplyLine, ByteBuffer> = try await ClientBootstrap(
-            group: NIOSingletons.posixEventLoopGroup
+            group: MultiThreadedEventLoopGroup.singleton
         ).connect(host: host, port: port) { channel in
             do {
                 if case .tls(let tls) = ssl.mode {
@@ -142,12 +145,12 @@ public final class SMTPClient {
             }
         }
 
-        let client = SMTPClient(channel: asyncChannel)
+        let connection = SMTPConnection(channel: asyncChannel)
         return try await withThrowingTaskGroup(of: T.self) { group in
             group.addTask {
                 var handle = Handle(
                     host: host,
-                    state: .preparing(client.requestWriter)
+                    state: .preparing(connection.requestWriter)
                 )
                 // An empty buffer is sent, which the networking layer doesn't (need to) write
                 // This happens because the first message is always sent by the server
@@ -155,7 +158,7 @@ public final class SMTPClient {
                 let serverHello = try await handle.send(ByteBuffer())
 
                 guard serverHello.isSuccessful else {
-                    throw SMTPClientError.commandFailed(code: serverHello.code)
+                    throw SMTPConnectionError.commandFailed(code: serverHello.code)
                 }
 
                 // After being accepted as a client, SMTP is request-response based
@@ -165,17 +168,17 @@ public final class SMTPClient {
                     try await handle.starttls(
                         configuration: tls,
                         hostname: host,
-                        channel: client.channel.channel
+                        channel: connection.channel.channel
                     )
                     handshake = try await handle.handshake(hostname: host)
                 }
 
-                handle.state = .prepared(client.requestWriter, handshake: handshake)
+                handle.state = .prepared(connection.requestWriter, handshake: handshake)
                 return try await perform(&handle)
             }
 
             group.addTask {
-                try await client.run()
+                try await connection.run()
             }
             guard let result = try await group.next() else {
                 throw CancellationError()
@@ -186,14 +189,14 @@ public final class SMTPClient {
     }
 }
 
-extension SMTPClient.Handle {
+extension SMTPConnection.Handle {
     fileprivate func starttls(
         configuration: SMTPSSLConfiguration,
         hostname: String,
         channel: Channel
     ) async throws {
         try await send(.starttls)
-            .status(.serviceReady, or: SMTPClientError.startTLSFailure)
+            .status(.serviceReady, or: SMTPConnectionError.startTLSFailure)
 
         let sslContext = try NIOSSLContext(configuration: configuration.configuration.makeTlsConfiguration())
         let sslHandler = try NIOSSLClientHandler(context: sslContext, serverHostname: hostname)

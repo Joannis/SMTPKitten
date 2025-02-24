@@ -1,4 +1,4 @@
-enum SMTPClientError: Error {
+enum SMTPConnectionError: Error {
     case endOfStream
     case protocolError
     case startTLSFailure

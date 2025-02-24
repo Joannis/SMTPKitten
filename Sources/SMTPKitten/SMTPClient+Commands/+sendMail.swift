@@ -1,4 +1,4 @@
-extension SMTPClient.Handle {
+extension SMTPConnection.Handle {
     public func sendMail(_ mail: Mail) async throws {
         var recipients = [MailUser]()
 
@@ -28,4 +28,18 @@ extension SMTPClient.Handle {
         try await send(.mailData(mail))
             .status(.commandOK)
     }
+}
+
+
+func testIfThisWorks() {
+    protocol MyProtocol: ~Copyable {
+        consuming func consume()
+    }
+
+    struct MyType: MyProtocol {
+        consuming func consume() {}
+    }
+
+    let instance: any MyProtocol = MyType()
+    instance.consume()
 }

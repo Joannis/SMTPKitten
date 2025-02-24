@@ -1,4 +1,4 @@
-extension SMTPClient.Handle {
+extension SMTPConnection.Handle {
     internal func selectAuthMethod() -> SMTPAuthMethod {
         if handshake.capabilities.contains(.loginPlain) {
             return .plain
@@ -17,18 +17,18 @@ extension SMTPClient.Handle {
         switch method.method {
         case .login:
             try await send(.authenticateLogin)
-                .status(.containingChallenge, or: SMTPClientError.loginFailed)
+                .status(.containingChallenge, or: SMTPConnectionError.loginFailed)
 
             try await send(.authenticateUser(user))
-                .status(.containingChallenge, or: SMTPClientError.loginFailed)
+                .status(.containingChallenge, or: SMTPConnectionError.loginFailed)
 
             try await self.send(.authenticatePassword(password))
-                .status(.authSucceeded, or: SMTPClientError.loginFailed)
+                .status(.authSucceeded, or: SMTPConnectionError.loginFailed)
         case .plain:
             try await send(.authenticatePlain(
                 credentials: .init(user: user, password: password))
             )
-            .status(.authSucceeded, or: SMTPClientError.loginFailed)
+            .status(.authSucceeded, or: SMTPConnectionError.loginFailed)
         }
     }
 }

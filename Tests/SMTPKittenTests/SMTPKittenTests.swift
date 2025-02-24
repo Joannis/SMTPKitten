@@ -11,12 +11,12 @@ final class SMTPKittenTests: XCTestCase {
     }
 
     func testBasics() async throws {
-        try await SMTPClient.withConnection(
+        try await SMTPConnection.withConnection(
             to: hostname,
             port: port,
             ssl: .insecure
-        ) { client in
-            try await client.sendMail(
+        ) { connection in
+            try await connection.sendMail(
                 Mail(
                     from: MailUser(name: "Joannis", email: "joannis@unbeatable.software"),
                     to: [MailUser(name: "MailHog User", email: "test@mail.hog")],
@@ -30,11 +30,11 @@ final class SMTPKittenTests: XCTestCase {
     func testAlternative() async throws {
         let html = "<p>Hello, from Swift!</p>"
 
-        try await SMTPClient.withConnection(
+        try await SMTPConnection.withConnection(
             to: hostname,
             port: port,
             ssl: .insecure
-        ) { client in
+        ) { connection in
             let mail = Mail(
                 from: MailUser(name: "My Mailer", email: "noreply@example.com"),
                 to: [MailUser(name: "John Doe", email: "john.doe@example.com")],
@@ -42,7 +42,7 @@ final class SMTPKittenTests: XCTestCase {
                 content: .alternative("Welcome to our app, you're all set up & stuff.", html: html)
             )
 
-            try await client.sendMail(mail)
+            try await connection.sendMail(mail)
         }
     }
 }

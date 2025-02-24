@@ -89,7 +89,7 @@ enum _SMTPRequest: Sendable {
     }
 }
 
-extension SMTPClient.Handle {
+extension SMTPConnection.Handle {
     func send(_ request: _SMTPRequest) async throws -> SMTPReply {
         var buffer = ByteBufferAllocator().buffer(capacity: 4096)
         try request.write(into: &buffer, forHost: host)

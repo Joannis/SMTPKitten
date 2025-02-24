@@ -15,7 +15,7 @@ And add it as a dependency of your target:
 ### Create a connection
 
 ```swift
-try await SMTPClient.withConnection(
+try await SMTPConnection.withConnection(
     to: "localhost",
     port: 1025,
     ssl: .insecure
